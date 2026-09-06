@@ -45,18 +45,35 @@
             android:textSize="16sp"
             tools:text="Queued packets: 0" />
 
-        <TextView
-            android:id="@+id/rejectedCountText"
+        <LinearLayout
+            android:id="@+id/rejectionNotice"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:background="#FFEBEE"
+            android:orientation="vertical"
             android:padding="8dp"
-            android:textSize="16sp"
-            android:textColor="#B71C1C"
             android:visibility="gone"
-            tools:text="Rejected by server: 3 · last reason: altitude_m must be &gt;= -1000"
-            tools:visibility="visible" />
+            tools:visibility="visible">
+
+            <TextView
+                android:id="@+id/rejectedCountText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="16sp"
+                android:textColor="#B71C1C"
+                tools:text="Rejected by server: 3 · last reason: altitude_m must be &gt;= -1000" />
+
+            <Button
+                android:id="@+id/dismissRejectionsButton"
+                style="?attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:layout_marginTop="4dp"
+                android:text="@string/button_dismiss_rejections"
+                android:textColor="#B71C1C" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/lastCaptureText"

@@ -9,6 +9,8 @@
     <string name="status_pending_packets">Queued packets: %1$d</string>
     <string name="status_rejected_format">Rejected by server: %1$d · last reason: %2$s</string>
     <string name="status_rejected_reason_unknown">reason not reported</string>
+    <string name="button_dismiss_rejections">Dismiss</string>
+    <string name="rejections_dismissed">Rejection notice cleared. Those packets are still lost.</string>
     <string name="status_last_capture_format">Last capture: %1$s</string>
     <string name="status_last_capture_none">Last capture: --</string>
     <string name="status_not_configured">Settings incomplete. Open Settings and fill in device ID, API key and server URL before starting.</string>

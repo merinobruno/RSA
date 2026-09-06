@@ -78,6 +78,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
         binding.batteryExemptionButton.setOnClickListener { requestBatteryExemption() }
+        binding.dismissRejectionsButton.setOnClickListener { dismissRejections() }
     }
 
     override fun onResume() {
@@ -115,12 +116,27 @@ class MainActivity : AppCompatActivity() {
         val dao = container.database.packetDao()
         dao.observeRejectedCount().collect { count ->
             if (count == 0) {
-                binding.rejectedCountText.visibility = View.GONE
+                binding.rejectionNotice.visibility = View.GONE
                 return@collect
             }
             val reason = dao.latestRejectionReason() ?: getString(R.string.status_rejected_reason_unknown)
             binding.rejectedCountText.text = getString(R.string.status_rejected_format, count, reason)
-            binding.rejectedCountText.visibility = View.VISIBLE
+            binding.rejectionNotice.visibility = View.VISIBLE
+        }
+    }
+
+    /**
+     * Clears the rejection notice once it has been read and acted on.
+     *
+     * This only removes the record, never recovers anything: those packets were refused by the
+     * server and are gone. Hence the confirmation wording - dismissing a warning should not leave
+     * the impression that the problem it reported was undone. The count is driven by a Flow over
+     * the queue, so deleting the rows hides the notice on its own.
+     */
+    private fun dismissRejections() {
+        lifecycleScope.launch {
+            container.database.packetDao().deleteRejected()
+            Toast.makeText(this@MainActivity, R.string.rejections_dismissed, Toast.LENGTH_SHORT).show()
         }
     }
 

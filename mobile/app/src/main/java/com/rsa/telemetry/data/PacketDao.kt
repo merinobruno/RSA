@@ -65,6 +65,18 @@ interface PacketDao {
     )
     suspend fun latestRejectionReason(): String?
 
+    /**
+     * Clears the rejected rows once the operator has seen them.
+     *
+     * Deletes rather than flagging them as acknowledged: these packets are already lost - the
+     * server refused them and they are never retried - so the rows exist only to make that loss
+     * visible. Once it has been read, keeping them buys nothing and costs storage on a phone that
+     * may not have much. The trade-off is that the specific failed packets cannot be inspected
+     * afterwards; the count and reason shown before dismissing are the record.
+     */
+    @Query("DELETE FROM packets WHERE status = 'REJECTED'")
+    suspend fun deleteRejected()
+
     /** Age-based trim for rejected rows, on the same cutoff as pending ones: they exist to be
      * noticed, not to accumulate forever on a storage-constrained phone. */
     @Query("DELETE FROM packets WHERE status = 'REJECTED' AND capturedAtEpochMillis < :cutoffEpochMillis")
