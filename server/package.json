@@ -16,7 +16,8 @@
     "test:unit": "vitest run",
     "test:watch": "vitest",
     "migrate": "tsx src/scripts/migrate.ts",
-    "seed:device": "tsx src/scripts/seedDevice.ts"
+    "seed:device": "tsx src/scripts/seedDevice.ts",
+    "export:kml": "tsx src/scripts/exportKml.ts"
   },
   "keywords": [],
   "author": "",
