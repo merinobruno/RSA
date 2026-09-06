@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="rsa_primary">#0D47A1</color>
+    <color name="rsa_primary_dark">#082A5E</color>
+    <color name="rsa_accent">#FFA000</color>
+    <color name="rsa_background">#FFFFFF</color>
+    <color name="rsa_on_primary">#FFFFFF</color>
+    <color name="ic_launcher_background">#0D47A1</color>
+</resources>

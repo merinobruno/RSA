@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+*.log
+coverage/
+
+# Local development database cluster created by `npm run db:dev`.
+.pgdata/

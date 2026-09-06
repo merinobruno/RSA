@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Backups are disabled (android:allowBackup="false" in the manifest) because the local queue
+     may contain a day's worth of unsent flight-track data and the settings store contains an
+     API key; neither should be copied off the device via cloud/adb backup. This file documents
+     the same intent for Android 12+'s scoped-backup APIs in case allowBackup is ever re-enabled. -->
+<data-extraction-rules>
+    <cloud-backup disableIfNoEncryptionCapability="true">
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="database" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="database" path="." />
+    </device-transfer>
+</data-extraction-rules>

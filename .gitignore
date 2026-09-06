@@ -1,0 +1,20 @@
+# Each subproject carries its own .gitignore (server/, mobile/) covering node_modules,
+# build output, the local database cluster and secrets. This file only catches the
+# machine- and editor-specific noise that does not belong to either of them.
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Environment files, everywhere. Only *.example templates are tracked.
+.env
+.env.*
+!.env.example

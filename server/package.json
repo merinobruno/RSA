@@ -1,0 +1,42 @@
+{
+  "name": "rsa-telemetry-server",
+  "version": "1.0.0",
+  "description": "Backend server for the RSA aircraft telemetry tracking system: ingests, validates, stores, and exposes a query API for telemetry packets sent by the companion Android app.",
+  "main": "dist/index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "db:dev": "node scripts/dev-db.mjs",
+    "stack": "node scripts/dev-stack.mjs",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "test": "node scripts/with-postgres.mjs vitest run",
+    "test:unit": "vitest run",
+    "test:watch": "vitest",
+    "migrate": "tsx src/scripts/migrate.ts",
+    "seed:device": "tsx src/scripts/seedDevice.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "pg": "^8.23.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.4.1",
+    "@types/pg": "^8.23.1",
+    "@types/supertest": "^7.2.1",
+    "embedded-postgres": "18.4.0-beta.17",
+    "supertest": "^7.2.2",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
+  }
+}
