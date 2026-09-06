@@ -1,0 +1,46 @@
+# Render blueprint: provisions the telemetry server and its PostgreSQL database together.
+#
+# To use it: push this repository to GitHub, then in Render choose
+# "New" > "Blueprint" and point it at the repo. Render reads this file, creates both services,
+# and wires DATABASE_URL from the database into the server automatically - there is no connection
+# string to copy by hand.
+#
+# After the first deploy the database is empty, so apply the schema once (see server/README.md,
+# "Deploying"): take the database's EXTERNAL connection string from the Render dashboard and run
+# `npm run migrate` against it locally, then `npm run seed:device` to register an aircraft. Both
+# are one-off operations, which is why they are not part of the start command.
+#
+# Free-tier caveat worth knowing before a flight: a free web service spins down after ~15 minutes
+# of inactivity and takes roughly a minute to wake. In the air that never happens - a packet every
+# 30 seconds keeps it warm - but the FIRST packet after a quiet period pays the wake-up. The app
+# queues packets locally and retries, so this delays data rather than losing it.
+
+services:
+  - type: web
+    name: rsa-telemetry-server
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: server
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    # Render restarts the service if this stops answering. The endpoint touches no database, so it
+    # reports the process being alive, not the database being reachable.
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: rsa-telemetry-db
+          property: connectionString
+      - key: NODE_VERSION
+        value: "22"
+      # PORT is injected by Render; src/config.ts already reads it.
+      # DATABASE_SSL is intentionally unset: src/db/pool.ts infers TLS from the host, which is
+      # correct for a managed database. Set it to "strict" once you have verified the provider's
+      # certificate chain is trusted.
+
+databases:
+  - name: rsa-telemetry-db
+    plan: free
+    databaseName: rsa_telemetry
+    user: rsa

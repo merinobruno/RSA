@@ -250,6 +250,38 @@ Two tables, see `migrations/001_init.sql`:
 - **`devices`**: `id` (uuid pk), `label` (text - e.g. tail number), `api_key_hash` (text, SHA-256 hex of the API key - the plaintext key is never stored), `created_at`.
 - **`telemetry`**: `id` (bigserial pk), `device_id` (fk -> devices), `packet_id` (uuid), `captured_at` (timestamptz), `lat`, `lon`, `altitude_m`, `gps_accuracy_m`, `speed_mps`, `heading_deg`, `accel_x`, `accel_y`, `accel_z`, `battery_pct` (all double precision), `received_at` (timestamptz, default now()). Unique constraint on `(device_id, packet_id)` - this is what makes ingestion idempotent at the database level.
 
+## Deploying
+
+`render.yaml` at the repository root is a Render blueprint that provisions the
+server and its PostgreSQL database together, wiring `DATABASE_URL` between them
+automatically.
+
+1. Push this repository to GitHub.
+2. In Render: **New > Blueprint**, point it at the repository, apply.
+3. Wait for the first deploy. `GET /health` on the service URL should answer
+   `{"status":"ok"}`.
+4. The database starts empty. Copy its **external** connection string from the
+   Render dashboard and, from your machine, apply the schema and register an
+   aircraft against it:
+
+   ```bash
+   DATABASE_URL="<external connection string>" npm run migrate
+   DATABASE_URL="<external connection string>" npm run seed:device -- "LV-ABC"
+   ```
+
+   Both are one-off operations, which is why neither runs at start-up. Save the
+   API key `seed:device` prints - it is shown once and only its hash is stored.
+5. Put the service URL and those credentials into the app's Settings. Unlike a
+   quick tunnel, this URL does not change, so this is the last time you type it.
+
+TLS needs no configuration: `src/db/pool.ts` infers it from the database host.
+
+**Free-tier caveat.** A free Render web service spins down after ~15 minutes of
+inactivity and takes about a minute to wake. During a flight that never
+happens - a packet every 30 seconds keeps it warm - but the first packet after
+a quiet period pays the wake-up. The app queues and retries, so this delays
+data rather than losing it. The free database also expires after 90 days.
+
 ## Testing
 
 ```bash
