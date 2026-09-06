@@ -280,8 +280,14 @@ There are two kinds of tests:
 The suite applies migrations itself on startup and cleans up its own rows, so
 any disposable database works. If port 55432 is taken, set `EMBEDDED_PG_PORT`.
 
-`npm run test:unit` runs vitest directly for a faster loop; the integration
-tests skip themselves there when no `DATABASE_URL` is set.
+`npm run test:unit` runs vitest directly for a faster loop, without starting
+anything. The integration tests skip themselves there **only when no
+`DATABASE_URL` is configured at all** - and note that a `.env` file counts,
+since the suite reads the same config the server does. So with a `.env`
+pointing at localhost, `npm run test:unit` will try to use that database and
+fail if it is not running. That is intended: a configured database that is
+unreachable is a real failure, not something to quietly skip. Use `npm test`
+(which provides its own database) unless you know yours is up.
 
 The `embedded-postgres` version is pinned exactly, not caret-ranged: every
 release of that package is published as a `-beta`, so an unpinned range would

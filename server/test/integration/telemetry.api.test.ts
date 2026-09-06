@@ -7,6 +7,7 @@ import { Pool } from "pg";
 import { createApp } from "../../src/app";
 import { hashApiKey } from "../../src/middleware/auth";
 import { closePool } from "../../src/db/pool";
+import { config } from "../../src/config";
 
 /**
  * Integration test against a REAL Postgres database.
@@ -23,7 +24,10 @@ import { closePool } from "../../src/db/pool";
  * If DATABASE_URL is not set, this entire suite is SKIPPED (not failed) so
  * that `npm test` still runs the pure unit tests in any environment.
  */
-const DATABASE_URL = process.env.DATABASE_URL;
+// Read through `config`, NOT `process.env` directly. `config` imports "dotenv/config", so it sees
+// a DATABASE_URL coming from a .env file; reading process.env here would not, and the two views
+// disagreeing is what previously made this suite skip its tests while still trying to connect.
+const DATABASE_URL = config.databaseUrl;
 
 if (!DATABASE_URL) {
   console.warn(
@@ -41,6 +45,15 @@ describe.skipIf(!DATABASE_URL)(
     let apiKey: string;
 
     beforeAll(async () => {
+      // `describe.skipIf` skips the TESTS but still runs this hook, and
+      // `new Pool({ connectionString: undefined })` makes pg fall back to its own default of
+      // localhost:5432 - so without this guard the suite fails with ECONNREFUSED on any machine
+      // that has no Postgres there, which is exactly the `npm run test:unit` fast loop.
+      // Belt and braces: the suite is already skipped when there is no DATABASE_URL, but without
+      // this guard `new Pool({ connectionString: undefined })` would silently fall back to pg's
+      // own localhost:5432 default and fail with a confusing ECONNREFUSED instead of a clear skip.
+      if (!DATABASE_URL) return;
+
       setupPool = new Pool({ connectionString: DATABASE_URL });
 
       // Apply migrations so the test database has the expected schema.
@@ -66,6 +79,8 @@ describe.skipIf(!DATABASE_URL)(
     });
 
     afterAll(async () => {
+      if (!DATABASE_URL) return;
+
       if (setupPool) {
         await setupPool.query("DELETE FROM telemetry WHERE device_id = $1", [deviceId]);
         await setupPool.query("DELETE FROM devices WHERE id = $1", [deviceId]);
