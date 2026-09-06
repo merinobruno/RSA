@@ -1,18 +1,15 @@
 import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
-import { Pool } from "pg";
-import { config } from "../config";
+import { closePool, getPool } from "../db/pool";
 
 const MIGRATIONS_DIR = join(__dirname, "..", "..", "migrations");
 
 async function main() {
-  if (!config.databaseUrl) {
-    throw new Error(
-      "Missing required environment variable: DATABASE_URL. Set it in your environment or in a .env file."
-    );
-  }
-
-  const pool = new Pool({ connectionString: config.databaseUrl });
+  // Deliberately the shared pool rather than a private `new Pool(...)`: it is the single place
+  // that decides TLS, and a managed database refuses an unencrypted connection outright
+  // ("SSL/TLS required"). A script with its own pool silently misses that and fails only against
+  // a real deployment - which is exactly how this was found.
+  const pool = getPool();
 
   try {
     await pool.query(`
@@ -56,7 +53,7 @@ async function main() {
 
     console.log(`Applied ${pending.length} migration(s).`);
   } finally {
-    await pool.end();
+    await closePool();
   }
 }
 

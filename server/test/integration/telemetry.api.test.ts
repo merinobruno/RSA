@@ -6,7 +6,7 @@ import { join } from "path";
 import { Pool } from "pg";
 import { createApp } from "../../src/app";
 import { hashApiKey } from "../../src/middleware/auth";
-import { closePool } from "../../src/db/pool";
+import { closePool, sslFor } from "../../src/db/pool";
 import { config } from "../../src/config";
 
 /**
@@ -54,7 +54,9 @@ describe.skipIf(!DATABASE_URL)(
       // own localhost:5432 default and fail with a confusing ECONNREFUSED instead of a clear skip.
       if (!DATABASE_URL) return;
 
-      setupPool = new Pool({ connectionString: DATABASE_URL });
+      // Same TLS decision the app itself makes, so pointing this suite at a managed database
+      // works rather than failing with "SSL/TLS required".
+      setupPool = new Pool({ connectionString: DATABASE_URL, ssl: sslFor(DATABASE_URL) });
 
       // Apply migrations so the test database has the expected schema.
       // Safe to re-run: every statement uses IF NOT EXISTS.

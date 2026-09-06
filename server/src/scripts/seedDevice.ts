@@ -1,6 +1,5 @@
 import { randomBytes, randomUUID } from "crypto";
-import { Pool } from "pg";
-import { config } from "../config";
+import { closePool, getPool } from "../db/pool";
 import { hashApiKey } from "../middleware/auth";
 
 /**
@@ -13,25 +12,20 @@ import { hashApiKey } from "../middleware/auth";
  *   (label defaults to "Unnamed device" if omitted)
  */
 async function main() {
-  if (!config.databaseUrl) {
-    throw new Error(
-      "Missing required environment variable: DATABASE_URL. Set it in your environment or in a .env file."
-    );
-  }
-
   const label = process.argv[2] ?? "Unnamed device";
   const id = randomUUID();
   const apiKey = randomBytes(32).toString("base64url");
   const apiKeyHash = hashApiKey(apiKey);
 
-  const pool = new Pool({ connectionString: config.databaseUrl });
+  // The shared pool, not a private one: it is the single place that decides TLS, which a managed
+  // database requires. See the note in migrate.ts.
   try {
-    await pool.query(
+    await getPool().query(
       "INSERT INTO devices (id, label, api_key_hash) VALUES ($1, $2, $3)",
       [id, label, apiKeyHash]
     );
   } finally {
-    await pool.end();
+    await closePool();
   }
 
   console.log("Device registered successfully.");
