@@ -46,7 +46,12 @@ class TelemetryForegroundService : LifecycleService() {
     private lateinit var connectivityManager: ConnectivityManager
 
     private var captureJob: Job? = null
+    private var uploadJob: Job? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+
+    /** Tracks fix availability so the notification can react the moment it changes, rather than
+     * waiting for the next upload cycle to tell the pilot the GPS went away. */
+    private var hadFix: Boolean? = null
 
     private val container get() = (application as MobileApp).container
 
@@ -55,6 +60,7 @@ class TelemetryForegroundService : LifecycleService() {
         locationProvider = LocationProvider(this)
         accelReader = AccelerationSensorReader(this)
         accelReader.start()
+        if (hasLocationPermission()) locationProvider.start()
 
         NotificationHelper.ensureChannel(this)
         startForegroundCompat(NotificationHelper.buildNotification(this, getString(R.string.notification_text_initial)))
@@ -65,15 +71,23 @@ class TelemetryForegroundService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
+        // Two loops, because capturing and uploading now run at different rates and neither should
+        // be able to stall the other. A slow upload used to delay the next capture; it no longer
+        // can, which is what lets the capture cadence actually hold at 1 Hz.
         if (captureJob?.isActive != true) {
             captureJob = lifecycleScope.launch {
                 while (isActive) {
-                    // The cycle's own cost (GPS fix + upload) is subtracted from the pause, so the
-                    // capture cadence stays at the interval instead of drifting by however slow the
-                    // device and network are. See QueuePolicy.nextDelayMillis.
                     val startedAt = System.currentTimeMillis()
                     runCaptureTick()
                     delay(QueuePolicy.nextDelayMillis(System.currentTimeMillis() - startedAt))
+                }
+            }
+        }
+        if (uploadJob?.isActive != true) {
+            uploadJob = lifecycleScope.launch {
+                while (isActive) {
+                    delay(QueuePolicy.UPLOAD_INTERVAL_MILLIS)
+                    runUploadCycle()
                 }
             }
         }
@@ -82,6 +96,8 @@ class TelemetryForegroundService : LifecycleService() {
 
     override fun onDestroy() {
         captureJob?.cancel()
+        uploadJob?.cancel()
+        locationProvider.stop()
         accelReader.stop()
         networkCallback?.let { connectivityManager.unregisterNetworkCallback(it) }
         isRunning = false
@@ -99,19 +115,30 @@ class TelemetryForegroundService : LifecycleService() {
     private fun hasLocationPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
+    /**
+     * One capture. Deliberately does no network work and never waits on the receiver: it takes
+     * whatever fix is current and returns, which is what keeps 1 Hz achievable on a slow phone.
+     */
     private suspend fun runCaptureTick() {
         if (!hasLocationPermission()) {
             updateNotification(getString(R.string.notification_text_no_permission))
             return
         }
+        // Idempotent, and self-heals the case where permission was granted after the service
+        // started: without it the stream would never begin and every capture would skip forever.
+        locationProvider.start()
 
-        val location = locationProvider.getCurrentLocation()
+        val location = locationProvider.latestFix()
         if (location == null) {
-            // No GPS fix yet (cold start, indoors, etc). Skip this cycle rather than record
-            // meaningless zeroed coordinates -- a gap in the track is honest, a fake point isn't.
-            updateNotification(getString(R.string.notification_text_waiting_gps))
+            // No fix, or the last one has gone stale. Skip rather than record a position the
+            // aircraft has already left -- a gap in the track is honest, a fabricated point is not.
+            if (hadFix != false) {
+                hadFix = false
+                updateNotification(getString(R.string.notification_text_waiting_gps))
+            }
             return
         }
+        hadFix = true
 
         val accel = accelReader.currentReading()
         val reading = TelemetryReading(
@@ -130,23 +157,33 @@ class TelemetryForegroundService : LifecycleService() {
 
         val packet = PacketFactory.createPacket(reading, deviceId = container.settingsRepository.deviceId)
         lastPacket = packet
-        val dao = container.database.packetDao()
-        dao.insert(packet.toEntity(reading.capturedAtEpochMillis))
+        container.database.packetDao().insert(packet.toEntity(reading.capturedAtEpochMillis))
+        lastCaptureEpochMillis = reading.capturedAtEpochMillis
+    }
 
-        val trimCutoff = reading.capturedAtEpochMillis - QueuePolicy.MAX_PENDING_AGE_MILLIS
+    /**
+     * Trims the queue, uploads it, and refreshes the notification.
+     *
+     * All three moved out of the capture tick when captures went to 1 Hz. Trimming ran three DELETE
+     * statements per capture, and the notification was rebuilt just as often - both wasteful sixty
+     * times a minute, and both only meaningful on the timescale at which the queue actually
+     * changes. The upload moved because it was the slow part: at 10 s on a weak phone it would have
+     * stalled ten captures.
+     */
+    private suspend fun runUploadCycle() {
+        val dao = container.database.packetDao()
+        val now = System.currentTimeMillis()
+        val trimCutoff = now - QueuePolicy.MAX_PENDING_AGE_MILLIS
+
         dao.trimExpired(cutoffEpochMillis = trimCutoff)
         dao.trimExcess(QueuePolicy.MAX_PENDING_ROWS)
         dao.trimRejected(cutoffEpochMillis = trimCutoff)
 
-        lastCaptureEpochMillis = reading.capturedAtEpochMillis
-        refreshNotification(reading.capturedAtEpochMillis, dao)
-
-        // Trigger (a) of the upload contract: "a capture cycle just added one".
         container.uploader.flushPending()
 
-        // Refresh again after the flush: it may have just learned that the server is refusing
-        // packets, and the pilot should see that now rather than a capture interval later.
-        refreshNotification(reading.capturedAtEpochMillis, dao)
+        // After the flush, so a rejection the server just reported reaches the pilot now rather
+        // than a cycle later.
+        if (lastCaptureEpochMillis != 0L) refreshNotification(lastCaptureEpochMillis, dao)
     }
 
     /**

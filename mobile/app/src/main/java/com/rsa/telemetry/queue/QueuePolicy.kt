@@ -1,47 +1,78 @@
 package com.rsa.telemetry.queue
 
 /**
- * Bounds and decisions for the local packet queue. Pure Kotlin, no Android or Room imports, so
- * the thresholds below can be unit tested directly.
+ * Bounds and decisions for the local packet queue. Pure Kotlin, no Android or Room imports, so the
+ * thresholds below can be unit tested directly.
  *
- * Sizing rationale for the two trim bounds (see README "Local queue" section for the full
- * writeup): captures happen every 30 seconds, so a full day of continuous outage is
- * 24h * 3600s / 30s = 2880 rows. We trim on two independent axes so that either a very long
- * outage *or* a clock/GPS glitch that stalls trimming doesn't grow the on-disk queue without
- * bound on a phone that may only have a few GB free:
+ * Capture and upload are deliberately decoupled. Capturing at 1 Hz is what makes the track usable:
+ * at 200 km/h a 30-second sample is a point every 1.7 km, which cannot show a turn, a circuit or a
+ * descent - the manoeuvre simply is not in the data. At 1 Hz it is a point every 55 m, which is
+ * also what ADS-B uses.
  *
- * - Age: drop anything older than [MAX_PENDING_AGE_MILLIS] (24 hours). A flight this late is not
- *   coming back online to care about that data point; a stale packet is worse than a gap.
- * - Row count: also cap at [MAX_PENDING_ROWS] (3000 rows, ~25 hours at the normal cadence) as a
- *   belt-and-suspenders bound in case device clock jumps make the age check unreliable.
+ * Uploading stays at 30 seconds because the cost of an upload is almost entirely establishing the
+ * connection - waking the radio, the TLS handshake - and that is paid once per REQUEST, not per
+ * packet. Measured in the field: 1.0 s median on a good phone, 9.8 s on a weak one, near enough
+ * independent of payload. So 30 packets in one POST cost what one packet did, and raising the
+ * capture rate 30x leaves the request count untouched.
  */
 object QueuePolicy {
-    const val CAPTURE_INTERVAL_MILLIS: Long = 30_000L
+    /** How often a reading is taken. See the class note for why this is 1 Hz. */
+    const val CAPTURE_INTERVAL_MILLIS: Long = 1_000L
+
+    /** How often the queue is flushed to the server, and trimmed. */
+    const val UPLOAD_INTERVAL_MILLIS: Long = 30_000L
+
+    /**
+     * How stale a fix may be and still be recorded.
+     *
+     * With a continuous location stream the latest fix is always available, which is convenient
+     * and dangerous: if the stream stops delivering (indoors, no sky, receiver lost), reusing the
+     * last known position would manufacture a point every second at a place the aircraft has
+     * already left. This is the guard that keeps a signal gap an honest gap. Three capture
+     * intervals is loose enough to tolerate jitter in the stream and tight enough that a recorded
+     * position is always a recent one.
+     */
+    const val MAX_FIX_AGE_MILLIS: Long = 3 * CAPTURE_INTERVAL_MILLIS
 
     const val MAX_PENDING_AGE_MILLIS: Long = 24L * 60 * 60 * 1000
 
-    const val MAX_PENDING_ROWS: Int = 3_000
+    /**
+     * Row cap for the local queue: 24 hours at 1 Hz.
+     *
+     * This had to grow with the capture rate, and it is not a detail. At the old 30-second cadence
+     * the previous cap of 3,000 rows held 25 hours; at 1 Hz it would hold **50 minutes**. A real
+     * outage of 62 minutes was recorded in the field the day before this changed, so the old cap
+     * would have silently discarded flight data during an outage the queue exists precisely to
+     * survive. At roughly 200 bytes a row this is about 17 MB of SQLite - nothing on any phone.
+     */
+    const val MAX_PENDING_ROWS: Int = 86_400
 
-    /** Packets are uploaded in batches this size so one POST body stays bounded after a long
-     * outage leaves thousands of rows pending; the loop simply issues more batches. */
-    const val UPLOAD_BATCH_SIZE: Int = 200
+    /**
+     * Packets per upload request.
+     *
+     * Larger than it was, because draining an outage now means far more rows and each request pays
+     * that fixed connection cost: an hour of backlog is ~3,600 packets, which is 8 requests at this
+     * size against 18 at the old one - and on a phone paying ~10 s per request, that difference is
+     * minutes. Kept well below the server's body limit so a batch never fails for size.
+     */
+    const val UPLOAD_BATCH_SIZE: Int = 500
 
     /**
      * Floor for the pause between capture cycles, for the case where one cycle overruns
-     * [CAPTURE_INTERVAL_MILLIS] entirely (slow GPS fix plus a slow upload on a weak phone). Without
-     * it the loop would busy-spin, which on the low-end hardware this targets is the worst possible
-     * response to the device already being overloaded.
+     * [CAPTURE_INTERVAL_MILLIS]. Without it the loop would busy-spin, which on the low-end hardware
+     * this targets is the worst possible response to the device already being overloaded. Small
+     * relative to the interval so it does not distort the cadence when a cycle merely runs long.
      */
-    const val MIN_CYCLE_DELAY_MILLIS: Long = 1_000L
+    const val MIN_CYCLE_DELAY_MILLIS: Long = 100L
 
     /**
      * How long to sleep after a capture cycle that took [tickDurationMillis].
      *
      * Sleeping a flat [CAPTURE_INTERVAL_MILLIS] *after* the work makes the real period
-     * `interval + however long the cycle took` -- the GPS fix and the upload both happen inside the
-     * cycle. Measured in the field: 31.7s average on a fast phone and 33.0s on a slow one, against a
-     * 30s target, drifting further the slower the device or the network. Subtracting the elapsed
-     * time holds the cadence at the interval regardless of how slow the device is.
+     * `interval + however long the cycle took`. Measured in the field before this existed: 31.7 s
+     * on a fast phone and 33.0 s on a slow one against a 30 s target, drifting further the slower
+     * the device. Subtracting the elapsed time holds the cadence regardless of device speed - which
+     * matters far more at 1 Hz, where even a 200 ms cycle would otherwise cost 20% of the rate.
      */
     fun nextDelayMillis(tickDurationMillis: Long): Long =
         (CAPTURE_INTERVAL_MILLIS - tickDurationMillis).coerceAtLeast(MIN_CYCLE_DELAY_MILLIS)
@@ -50,7 +81,7 @@ object QueuePolicy {
         nowEpochMillis - capturedAtEpochMillis > MAX_PENDING_AGE_MILLIS
 
     /** An upload attempt is only worth making when there is something queued and the device
-     * currently believes it has network connectivity. Both the capture loop and the WorkManager
+     * currently believes it has network connectivity. Both the upload loop and the WorkManager
      * retry job funnel through this before touching the network. */
     fun shouldAttemptUpload(pendingCount: Int, hasNetwork: Boolean): Boolean =
         hasNetwork && pendingCount > 0

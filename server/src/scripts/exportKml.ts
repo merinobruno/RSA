@@ -68,7 +68,10 @@ async function main() {
   const deviceId = positional[0];
   const outPath = positional[1] ?? "track.kml";
   const since = flag("since");
-  const limit = Number(flag("limit") ?? 10000);
+  // Raised when capture went to 1 Hz: the old 10,000 was under three hours of flight, so a longer
+  // one would have been truncated. Silently, which is the part that mattered - see the warning
+  // below.
+  const limit = Number(flag("limit") ?? 50000);
   const simple = args.includes("--simple");
 
   if (!deviceId) {
@@ -108,6 +111,16 @@ async function main() {
 
   const label = deviceRows.rows[0]?.label ?? deviceId;
   const iso = (d: Date) => new Date(d).toISOString();
+
+  // Hitting the limit exactly almost certainly means the track was cut short. A truncated export
+  // looks like a complete one - the line just ends somewhere plausible - so this has to be said
+  // out loud rather than left for someone to notice on the map.
+  if (rows.length === limit) {
+    console.warn(
+      `WARNING: hit the ${limit}-row limit, so this track is probably TRUNCATED.\n` +
+        `         Narrow it with --since <iso8601>, or raise --limit.\n`
+    );
+  }
 
   let metres = 0;
   for (let i = 1; i < rows.length; i++) metres += metresBetween(rows[i - 1], rows[i]);

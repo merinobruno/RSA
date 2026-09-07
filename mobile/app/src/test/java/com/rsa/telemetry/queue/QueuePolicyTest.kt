@@ -54,9 +54,9 @@ class QueuePolicyTest {
 
     @Test
     fun `a slow cycle has its own duration subtracted, holding the cadence at the interval`() {
-        // Measured in the field before this existed: a ~3s cycle produced a 33s period against a
-        // 30s target. Subtracting the elapsed time is what keeps captures on cadence.
-        val tick = 3_000L
+        // This matters far more at 1 Hz than it did at 30s: a cycle costing a fifth of the interval
+        // would cost a fifth of the capture rate if it were not subtracted.
+        val tick = QueuePolicy.CAPTURE_INTERVAL_MILLIS / 5
         assertEquals(QueuePolicy.CAPTURE_INTERVAL_MILLIS - tick, QueuePolicy.nextDelayMillis(tick))
     }
 
@@ -75,10 +75,51 @@ class QueuePolicyTest {
     }
 
     @Test
-    fun `batch size divides the row cap into a sane number of requests`() {
-        // Sanity check that the two constants were not changed independently in a way that makes
-        // a full queue require an absurd number of batches to drain.
-        val worstCaseBatchCount = (QueuePolicy.MAX_PENDING_ROWS + QueuePolicy.UPLOAD_BATCH_SIZE - 1) / QueuePolicy.UPLOAD_BATCH_SIZE
-        assertTrue("expected a handful of batches to drain a full queue, got $worstCaseBatchCount", worstCaseBatchCount <= 50)
+    fun `batch size drains a full queue in a bounded number of requests`() {
+        // Each request pays a fixed connection cost - measured at ~10s on the weak phone - so the
+        // request count, not the packet count, is what decides how long a drain takes. A full 24h
+        // queue should still empty in minutes rather than hours.
+        val worstCaseBatchCount =
+            (QueuePolicy.MAX_PENDING_ROWS + QueuePolicy.UPLOAD_BATCH_SIZE - 1) / QueuePolicy.UPLOAD_BATCH_SIZE
+
+        assertTrue("draining a full queue takes $worstCaseBatchCount requests, too many", worstCaseBatchCount <= 200)
+    }
+
+    @Test
+    fun `the row cap holds a full day at the capture rate`() {
+        // This is the constant that silently discards flight data if it falls behind the capture
+        // rate. It was 3,000 when captures were every 30s (25 hours); at 1 Hz that same number
+        // would have held 50 minutes, against a 62-minute outage actually recorded in the field.
+        val rowsPerDay = 24 * 60 * 60 * 1000L / QueuePolicy.CAPTURE_INTERVAL_MILLIS
+
+        assertTrue(
+            "row cap ${QueuePolicy.MAX_PENDING_ROWS} holds less than the $rowsPerDay the age limit allows",
+            QueuePolicy.MAX_PENDING_ROWS >= rowsPerDay
+        )
+    }
+
+    @Test
+    fun `a fix may not be older than a few capture intervals`() {
+        // The staleness bound is what stops a stalled location stream from replaying the last
+        // known position once per second across a gap. Loose enough for stream jitter, tight
+        // enough that a recorded position is a recent one.
+        assertTrue(QueuePolicy.MAX_FIX_AGE_MILLIS > QueuePolicy.CAPTURE_INTERVAL_MILLIS)
+        assertTrue(QueuePolicy.MAX_FIX_AGE_MILLIS <= 5 * QueuePolicy.CAPTURE_INTERVAL_MILLIS)
+    }
+
+    @Test
+    fun `uploads are far less frequent than captures, which is the point of decoupling them`() {
+        assertTrue(QueuePolicy.UPLOAD_INTERVAL_MILLIS > QueuePolicy.CAPTURE_INTERVAL_MILLIS * 10)
+    }
+
+    @Test
+    fun `one upload interval of captures fits comfortably in a single batch`() {
+        // Steady state with network: every flush should be one request, never several.
+        val capturesPerUpload = QueuePolicy.UPLOAD_INTERVAL_MILLIS / QueuePolicy.CAPTURE_INTERVAL_MILLIS
+
+        assertTrue(
+            "$capturesPerUpload captures per upload does not fit a ${QueuePolicy.UPLOAD_BATCH_SIZE} batch",
+            capturesPerUpload <= QueuePolicy.UPLOAD_BATCH_SIZE
+        )
     }
 }
