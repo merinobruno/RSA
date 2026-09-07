@@ -5,6 +5,7 @@ import { closePool, getPool } from "../db/pool";
  * Exports one device's telemetry as KML, for Google Earth or Google My Maps.
  *
  *   npm run export:kml -- <device_id> [output.kml] [--since 2026-09-06T00:00:00Z] [--limit 5000]
+ *                        [--simple]
  *
  * Reads the database directly rather than going through the HTTP API, for one decisive reason:
  * the API needs that device's key, and a key cannot be recovered once issued - only its hash is
@@ -16,6 +17,11 @@ import { closePool, getPool } from "../db/pool";
  *     gives it a time slider, so you can replay the flight rather than stare at a static line.
  *   - "Path" is a plain LineString, which every KML viewer understands, including Google My Maps
  *     and anything that ignores the gx: extensions.
+ *
+ * `--simple` emits only that second form. Google My Maps imports the full file perfectly well but
+ * warns "Unsupported element" for gx:Track and TimeStamp, and a tool that greets you with warnings
+ * every time trains you to ignore warnings. Use --simple when the destination is My Maps, and the
+ * default when it is Google Earth, where the animation is the whole point.
  *
  * Altitude is deliberately clamped to the ground. The altitude this system currently records does
  * not track real elevation (see the project notes), and drawing a track at a height known to be
@@ -63,6 +69,7 @@ async function main() {
   const outPath = positional[1] ?? "track.kml";
   const since = flag("since");
   const limit = Number(flag("limit") ?? 10000);
+  const simple = args.includes("--simple");
 
   if (!deviceId) {
     throw new Error(
@@ -123,20 +130,7 @@ async function main() {
     values.map((v) => `                <gx:value>${v}</gx:value>`).join("\n") +
     `\n              </gx:SimpleArrayData>`;
 
-  const kml = `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
-  <Document>
-    <name>${xmlEscape(label)} - telemetry</name>
-    <description>${xmlEscape(summary)}</description>
-
-    <Style id="trackStyle">
-      <LineStyle><color>ff0288d1</color><width>4</width></LineStyle>
-      <IconStyle><scale>0.8</scale></IconStyle>
-    </Style>
-    <Style id="startStyle"><IconStyle><color>ff00c853</color><scale>1.1</scale></IconStyle></Style>
-    <Style id="endStyle"><IconStyle><color>ff0000ff</color><scale>1.1</scale></IconStyle></Style>
-
-    <Folder>
+  const animatedFolder = `    <Folder>
       <name>Track (animated)</name>
       <Placemark>
         <name>${xmlEscape(label)}</name>
@@ -157,7 +151,24 @@ ${simpleArray("battery_pct", rows.map((r) => r.battery_pct))}
       </Placemark>
     </Folder>
 
-    <Folder>
+`;
+
+  const stamp = (d: Date) => (simple ? "" : `\n        <TimeStamp><when>${iso(d)}</when></TimeStamp>`);
+
+  const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"${simple ? "" : ` xmlns:gx="http://www.google.com/kml/ext/2.2"`}>
+  <Document>
+    <name>${xmlEscape(label)} - telemetry</name>
+    <description>${xmlEscape(summary)}</description>
+
+    <Style id="trackStyle">
+      <LineStyle><color>ff0288d1</color><width>4</width></LineStyle>
+      <IconStyle><scale>0.8</scale></IconStyle>
+    </Style>
+    <Style id="startStyle"><IconStyle><color>ff00c853</color><scale>1.1</scale></IconStyle></Style>
+    <Style id="endStyle"><IconStyle><color>ff0000ff</color><scale>1.1</scale></IconStyle></Style>
+
+${simple ? "" : animatedFolder}    <Folder>
       <name>Path</name>
       <Placemark>
         <name>${xmlEscape(label)} path</name>
@@ -174,14 +185,12 @@ ${simpleArray("battery_pct", rows.map((r) => r.battery_pct))}
       <name>Start and end</name>
       <Placemark>
         <name>Start</name>
-        <styleUrl>#startStyle</styleUrl>
-        <TimeStamp><when>${iso(rows[0].captured_at)}</when></TimeStamp>
+        <styleUrl>#startStyle</styleUrl>${stamp(rows[0].captured_at)}
         <Point><coordinates>${rows[0].lon},${rows[0].lat},0</coordinates></Point>
       </Placemark>
       <Placemark>
         <name>End</name>
-        <styleUrl>#endStyle</styleUrl>
-        <TimeStamp><when>${iso(rows[rows.length - 1].captured_at)}</when></TimeStamp>
+        <styleUrl>#endStyle</styleUrl>${stamp(rows[rows.length - 1].captured_at)}
         <Point><coordinates>${rows[rows.length - 1].lon},${rows[rows.length - 1].lat},0</coordinates></Point>
       </Placemark>
     </Folder>
