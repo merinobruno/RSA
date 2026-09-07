@@ -129,6 +129,7 @@ class TelemetryForegroundService : LifecycleService() {
         )
 
         val packet = PacketFactory.createPacket(reading, deviceId = container.settingsRepository.deviceId)
+        lastPacket = packet
         val dao = container.database.packetDao()
         dao.insert(packet.toEntity(reading.capturedAtEpochMillis))
 
@@ -187,6 +188,18 @@ class TelemetryForegroundService : LifecycleService() {
     companion object {
         @Volatile
         var isRunning: Boolean = false
+            private set
+
+        /**
+         * The last packet built, exposed so the main screen can show exactly what is being sent.
+         *
+         * Held here rather than read back from the queue because a delivered packet is deleted
+         * from the queue immediately, so after a healthy upload there would be nothing left to
+         * display - and the one moment the operator most wants to see the data is when everything
+         * is working. Same volatile-field approach as [lastCaptureEpochMillis].
+         */
+        @Volatile
+        var lastPacket: com.rsa.telemetry.capture.TelemetryPacket? = null
             private set
 
         /** Wall-clock time of the last successful capture, for [com.rsa.telemetry.MainActivity]'s

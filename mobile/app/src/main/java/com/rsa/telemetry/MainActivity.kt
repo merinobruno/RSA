@@ -19,6 +19,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.rsa.telemetry.databinding.ActivityMainBinding
 import com.rsa.telemetry.service.TelemetryForegroundService
 import com.rsa.telemetry.util.Iso8601
+import com.rsa.telemetry.util.PacketFormatter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -159,6 +160,16 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.status_last_capture_none)
         } else {
             getString(R.string.status_last_capture_format, Iso8601.formatUtc(lastCapture))
+        }
+
+        // Exactly the fields that go on the wire, so "what is it actually sending?" is answerable
+        // from the phone instead of from the server's database.
+        val packet = TelemetryForegroundService.lastPacket
+        if (packet == null) {
+            binding.lastPacketPanel.visibility = View.GONE
+        } else {
+            binding.lastPacketText.text = PacketFormatter.format(packet)
+            binding.lastPacketPanel.visibility = View.VISIBLE
         }
     }
 
