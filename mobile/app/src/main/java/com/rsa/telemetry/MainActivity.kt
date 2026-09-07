@@ -159,7 +159,9 @@ class MainActivity : AppCompatActivity() {
         binding.lastCaptureText.text = if (lastCapture == 0L) {
             getString(R.string.status_last_capture_none)
         } else {
-            getString(R.string.status_last_capture_format, Iso8601.formatUtc(lastCapture))
+            // Local time here too: every timestamp a human reads in this app is local, every
+            // timestamp that travels or is stored is UTC. No screen mixes the two.
+            getString(R.string.status_last_capture_format, "${Iso8601.formatLocal(lastCapture)} ${Iso8601.LOCAL_ZONE_LABEL}")
         }
 
         // Exactly the fields that go on the wire, so "what is it actually sending?" is answerable

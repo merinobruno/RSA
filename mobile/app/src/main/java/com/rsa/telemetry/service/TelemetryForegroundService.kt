@@ -156,7 +156,8 @@ class TelemetryForegroundService : LifecycleService() {
     private suspend fun refreshNotification(capturedAtEpochMillis: Long, dao: PacketDao) {
         val pendingCount = dao.countPending()
         val rejectedCount = dao.countRejected()
-        val capturedAt = Iso8601.formatUtc(capturedAtEpochMillis)
+        // The notification is read by a person, so it shows local time. The packet keeps UTC.
+        val capturedAt = Iso8601.formatLocal(capturedAtEpochMillis)
         updateNotification(
             if (rejectedCount > 0) {
                 getString(R.string.notification_text_format_rejected, capturedAt, pendingCount, rejectedCount)

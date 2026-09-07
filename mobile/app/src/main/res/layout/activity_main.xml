@@ -123,6 +123,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/last_packet_title"
                 android:textColor="#424242"
+                android:textSize="16sp"
                 android:textStyle="bold" />
 
             <!-- Scrolls horizontally rather than wrapping: the aligned columns are the point, and
@@ -138,10 +139,11 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:fontFamily="monospace"
+                    android:lineSpacingExtra="4dp"
                     android:textColor="#212121"
                     android:textIsSelectable="true"
-                    android:textSize="12sp"
-                    tools:text="time      2026-09-07T12:34:56.789Z" />
+                    android:textSize="18sp"
+                    tools:text="time     07/09 15:34:56 GMT-3" />
             </HorizontalScrollView>
         </LinearLayout>
 

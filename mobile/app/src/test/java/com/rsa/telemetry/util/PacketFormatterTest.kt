@@ -27,10 +27,9 @@ class PacketFormatterTest {
     )
 
     /**
-     * The device this runs on is set to es-AR, where the default number formatting uses a comma as
-     * the decimal separator. A coordinate rendered as "-38,931541" beside a comma-separated
-     * lat/lon pair is unreadable and cannot be pasted into a map, and it would not match the dot
-     * the packet actually puts on the wire. So the formatter must not follow the device locale.
+     * The device runs es-AR, where default number formatting uses a comma decimal separator. A
+     * coordinate rendered "-38,931541" is unreadable, cannot be pasted into a map, and would not
+     * match the dot the packet puts on the wire. Forcing the locale here keeps that pinned.
      */
     @Before
     fun useACommaDecimalLocale() {
@@ -43,49 +42,68 @@ class PacketFormatterTest {
     }
 
     @Test
+    fun `shows the time in local GMT-3, not the UTC the packet carries`() {
+        val out = PacketFormatter.format(packet)
+
+        // 12:34:56 UTC is 09:34:56 at -03:00.
+        assertTrue("expected local 09:34:56, got:\n$out", out.contains("07/09 09:34:56 GMT-3"))
+        assertTrue("the raw UTC stamp should not be shown to the operator", !out.contains("12:34:56"))
+    }
+
+    @Test
     fun `renders coordinates with dot decimals regardless of a comma-decimal device locale`() {
         val out = PacketFormatter.format(packet)
 
-        assertTrue("expected dot decimals, got:\n$out", out.contains("-38.931541, -67.975819"))
+        assertTrue("expected dot decimals, got:\n$out", out.contains("-38.931541"))
+        assertTrue("expected dot decimals, got:\n$out", out.contains("-67.975819"))
         assertTrue("latitude must not use a comma decimal separator", !out.contains("-38,93"))
     }
 
     @Test
-    fun `shows speed in both m per s and km per h`() {
+    fun `shows speed in km per h, the unit a person reads`() {
         val out = PacketFormatter.format(packet)
 
-        assertTrue(out.contains("31.5 m/s"))
-        // 31.5 m/s is 113.4 km/h, rounded for display.
-        assertTrue("expected a km/h conversion, got:\n$out", out.contains("113 km/h"))
+        // 31.5 m/s is 113.4 km/h.
+        assertTrue("expected km/h, got:\n$out", out.contains("113 km/h"))
+        assertTrue("m/s belongs on the wire, not on the screen", !out.contains("m/s"))
     }
 
     @Test
     fun `signs every acceleration axis so a negative reading is unmistakable`() {
         val out = PacketFormatter.format(packet)
 
-        assertTrue(out.contains("x +1.50"))
-        assertTrue(out.contains("y -2.25"))
-        assertTrue(out.contains("z +8.13"))
+        assertTrue("expected signed axes, got:\n$out", out.contains("+1.50 -2.25 +8.13"))
     }
 
     @Test
-    fun `includes every field that goes on the wire`() {
+    fun `includes every field a person needs to sanity-check a capture`() {
         val out = PacketFormatter.format(packet)
 
-        for (label in listOf("time", "position", "accuracy", "altitude", "speed", "heading", "accel", "battery", "packet")) {
-            assertTrue("missing the $label row in:\n$out", out.contains(label))
+        for (label in listOf("time", "speed", "heading", "altitude", "battery", "lat", "lon", "accuracy", "accel")) {
+            assertTrue("missing the $label row in:\n$out", out.lines().any { it.startsWith(label) })
         }
-        assertTrue(out.contains(packet.capturedAt))
-        assertTrue(out.contains(packet.packetId))
         assertTrue(out.contains("77%"))
     }
 
     @Test
-    fun `keeps the labels aligned so the values line up in a column`() {
-        val valueColumns = PacketFormatter.format(packet)
-            .lines()
-            .map { line -> line.indexOf(line.trim().split(Regex("\\s{2,}"))[1].first()) }
+    fun `keeps every row within a width a narrow phone can show at a large font`() {
+        // The panel scrolls sideways, but a value the operator has to scroll to reach is a value
+        // they will not read. Roughly 30 monospace characters fits a 360dp screen at 18sp.
+        val widest = PacketFormatter.format(packet).lines().maxOf { it.length }
 
-        assertTrue("every value should start at the same column", valueColumns.distinct().size == 1)
+        assertTrue("widest row is $widest characters, too wide to read at a glance", widest <= 30)
+    }
+
+    @Test
+    fun `aligns every value at the same column`() {
+        // The label is padded to a fixed width and followed by one space, so every value starts at
+        // the same index. Ragged values are exactly what makes a block like this hard to scan.
+        val valueColumn = 9
+
+        for (line in PacketFormatter.format(packet).lines()) {
+            assertTrue("line too short to hold a value: '$line'", line.length > valueColumn)
+            assertTrue("label overruns the column in: '$line'", line[valueColumn - 1] == ' ')
+            assertTrue("value does not start at column $valueColumn in: '$line'", line[valueColumn] != ' ')
+        }
     }
 }

@@ -9,40 +9,47 @@ import java.util.Locale
  *
  * Pure Kotlin, no Android imports, so the formatting is unit tested directly.
  *
+ * Two deliberate choices about what the human sees versus what travels:
+ *
+ * - The time is shown in local time ([Iso8601.LOCAL_ZONE_LABEL]) because a pilot reads a clock,
+ *   not a UTC stamp. The packet still carries UTC and nothing converts it; this is a lens, not a
+ *   second timestamp. One instant, one stored representation.
+ * - Speed is shown in km/h alone. The wire carries m/s, which is the right unit for computation
+ *   and the wrong one for a person glancing at a phone before takeoff.
+ *
  * Every number goes through [Locale.US] deliberately. The default locale here is es-AR, where
  * `"%.6f".format(-38.9315414)` yields `-38,931541` - a comma decimal separator. Coordinates with
- * commas are both hard to read beside a comma-separated lat/lon pair and impossible to paste into
- * a mapping tool, and the value on the wire uses a dot regardless. The display must match what is
- * actually sent, not what the phone's locale prefers.
+ * commas are hard to read beside a comma-separated lat/lon pair, cannot be pasted into a mapping
+ * tool, and would not match the dot the packet actually puts on the wire.
  */
 object PacketFormatter {
 
     private const val MPS_TO_KMH = 3.6
 
+    /** Kept short so the widest row still fits a narrow phone at a large, readable font size. */
+    private const val LABEL_WIDTH = 8
+
     fun format(packet: TelemetryPacket): String {
-        fun row(label: String, value: String) = "%-9s %s".format(Locale.US, label, value)
+        fun row(label: String, value: String) = "%-${LABEL_WIDTH}s %s".format(Locale.US, label, value)
 
         return listOf(
-            row("time", packet.capturedAt),
-            row("position", "%.6f, %.6f".format(Locale.US, packet.lat, packet.lon)),
-            row("accuracy", "%.1f m".format(Locale.US, packet.gpsAccuracyM)),
-            row("altitude", "%.1f m".format(Locale.US, packet.altitudeM)),
-            row(
-                "speed",
-                "%.1f m/s  (%.0f km/h)".format(Locale.US, packet.speedMps, packet.speedMps * MPS_TO_KMH)
-            ),
+            row("time", "${Iso8601.toLocalDisplay(packet.capturedAt)} ${Iso8601.LOCAL_ZONE_LABEL}"),
+            row("speed", "%.0f km/h".format(Locale.US, packet.speedMps * MPS_TO_KMH)),
             row("heading", "%.0f°".format(Locale.US, packet.headingDeg)),
+            row("altitude", "%.0f m".format(Locale.US, packet.altitudeM)),
+            row("battery", "${packet.batteryPct}%"),
+            row("lat", "%.6f".format(Locale.US, packet.lat)),
+            row("lon", "%.6f".format(Locale.US, packet.lon)),
+            row("accuracy", "%.0f m".format(Locale.US, packet.gpsAccuracyM)),
             row(
                 "accel",
-                "x %+.2f  y %+.2f  z %+.2f m/s²".format(
+                "%+.2f %+.2f %+.2f".format(
                     Locale.US,
                     packet.acceleration.x,
                     packet.acceleration.y,
                     packet.acceleration.z
                 )
             ),
-            row("battery", "${packet.batteryPct}%"),
-            row("packet", packet.packetId),
         ).joinToString("\n")
     }
 }
