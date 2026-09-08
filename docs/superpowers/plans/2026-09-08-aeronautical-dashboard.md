@@ -736,15 +736,17 @@ Add these tests inside `describe("flightDetailPage", ...)`, before the closing `
     expect(html).not.toContain(">Velocidad<");
   });
 
-  it("names the elevation for the datum it is actually measured against", () => {
+  it("names the elevation for the datum it is actually measured against (Task 4 half)", () => {
     // Not "altitud": it is neither above mean sea level nor pressure altitude, and calling it
-    // altitude is the first step toward believing it.
+    // altitude is the first step toward believing it. The datum itself is stated once, in visible
+    // text under the profile - Task 5 renders it and asserts it. Do not add a second statement of
+    // it here, and do not hide it in a title attribute: a qualification this load-bearing does not
+    // belong somewhere a touch or keyboard reader never reaches.
     const points = track(10);
 
     const html = flightDetailPage(summaryFor(points), points);
 
     expect(html).toContain("ELEV GPS");
-    expect(html).toContain("WGS84");
   });
 
   it("carries an elevation in feet for every point so the readout can state one", () => {
@@ -808,8 +810,24 @@ describe("bandSpeedBoundsKt", () => {
 
     expect(bounds.every((b) => b.fromKt === 0 && b.toKt === 0)).toBe(true);
   });
+
+  it("leaves no gap or overlap between neighbouring slices", () => {
+    // Ported from the bandSpeedBoundsKmh block this rename retires. A legend with a gap between
+    // two swatches describes a speed the line can be drawn in but the key does not name.
+    const bounds = bandSpeedBoundsKt(50);
+
+    for (let i = 1; i < bounds.length; i++) {
+      expect(bounds[i].fromKt).toBe(bounds[i - 1].toKt);
+    }
+  });
 });
 ```
+
+**`server/test/unit/speedRamp.test.ts` also imports `bandSpeedBoundsKmh`** and will stop compiling
+the moment it is renamed. Delete its `describe("bandSpeedBoundsKmh", ...)` block in this same
+commit — every assertion in it is now covered by `legendKnots.test.ts` above, including the
+gap/overlap one, which is why that test is ported rather than dropped. Leave the rest of
+`speedRamp.test.ts` untouched.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -1060,6 +1078,18 @@ Add these tests to `describe("flightDetailPage", ...)` in `server/test/unit/flig
     expect(html).toContain('class="profile-svg"');
     expect(html).toContain('id="profile-cursor"');
     expect(html).toMatch(/class="profile-envelope"/);
+  });
+
+  it("states the datum the elevation is measured against, in visible text", () => {
+    // "ELEV GPS" alone names nothing a reader can check. The qualification lives here, once, in
+    // the profile note - not in a title attribute a touch or keyboard reader never reaches.
+    const points = track(600);
+
+    const html = flightDetailPage(summaryFor(points), points);
+    const note = /<span class="profile-note">([\s\S]*?)<\/span>/.exec(html);
+
+    expect(note).not.toBeNull();
+    expect(note![1]).toContain("WGS84");
   });
 
   it("shades the profile where the recorded value simply repeated", () => {
