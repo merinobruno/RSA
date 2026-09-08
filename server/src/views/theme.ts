@@ -23,6 +23,10 @@ export interface Palette {
   warnBg: string;
   warnBorder: string;
   warnInk: string;
+  /** The elevation profile's trace. Non-text: it is a shape, not a label. */
+  profileInk: string;
+  /** The shading over profile columns that repeated the previous sample. */
+  profileFrozen: string;
 }
 
 export const LIGHT: Palette = {
@@ -36,6 +40,8 @@ export const LIGHT: Palette = {
   warnBg: "#fff8e1",
   warnBorder: "#f0d488",
   warnInk: "#5d4409",
+  profileInk: "#37474f",
+  profileFrozen: "#b26a00",
 };
 
 export const DARK: Palette = {
@@ -51,6 +57,8 @@ export const DARK: Palette = {
   warnBg: "#2b2418",
   warnBorder: "#4a3c1a",
   warnInk: "#e8d9b0",
+  profileInk: "#b0bec5",
+  profileFrozen: "#d9a441",
 };
 
 /**

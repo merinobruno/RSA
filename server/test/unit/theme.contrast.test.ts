@@ -73,6 +73,25 @@ describe.each([
   it("keeps the accent visible as a border without being used for text", () => {
     expect(contrastRatio(palette.accent, palette.bg)).toBeGreaterThanOrEqual(UI_MINIMUM);
   });
+
+  it("renders the elevation stat readably on the page and on a card", () => {
+    // The elevation tile is the one stat rendered in warnInk, and it sits on the page rather than
+    // on the warning's own amber background - which is the only pairing the palette was measured
+    // for until now.
+    expect(contrastRatio(palette.warnInk, palette.bg)).toBeGreaterThanOrEqual(TEXT_MINIMUM);
+    expect(contrastRatio(palette.warnInk, palette.surface)).toBeGreaterThanOrEqual(TEXT_MINIMUM);
+  });
+
+  it("draws the elevation profile visibly against the card it sits on", () => {
+    expect(contrastRatio(palette.profileInk, palette.surface)).toBeGreaterThanOrEqual(UI_MINIMUM);
+  });
+
+  it("keeps the frozen shading visible and distinct from the trace it marks", () => {
+    // Shading that cannot be told from the trace turns the warning into decoration.
+    expect(contrastRatio(palette.profileFrozen, palette.surface)).toBeGreaterThanOrEqual(UI_MINIMUM);
+    expect(contrastRatio(palette.profileFrozen, palette.profileInk))
+      .toBeGreaterThanOrEqual(UI_MINIMUM);
+  });
 });
 
 describe("header", () => {
