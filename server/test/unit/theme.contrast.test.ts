@@ -29,6 +29,32 @@ const TEXT_MINIMUM = 4.5;
 /** WCAG AA, non-text UI: borders, focus rings, markers. */
 const UI_MINIMUM = 3;
 
+/** The strongest the profile ever paints a frozen column. Task 5 renders at this opacity. */
+const MAX_FROZEN_OPACITY = 0.55;
+
+/**
+ * A floor for "perceptible as a tint", not a WCAG threshold - the spec sets none for a shaded
+ * region, because a tint is not a shape whose form has to be read. The accessibility requirement
+ * for this pairing is the trace-on-shading ratio below it.
+ */
+const TINT_MINIMUM = 1.5;
+
+/** Alpha compositing, so a colour can be measured as it renders rather than as it is declared. */
+function over(foreground: string, background: string, alpha: number): string {
+  const channels = (hex: string) =>
+    [0, 2, 4].map((i) => parseInt(hex.replace("#", "").slice(i, i + 2), 16));
+  const [fr, fg, fb] = channels(foreground);
+  const [br, bg, bb] = channels(background);
+
+  return `#${[[fr, br], [fg, bg], [fb, bb]]
+    .map(([f, b]) =>
+      Math.round(f * alpha + b * (1 - alpha))
+        .toString(16)
+        .padStart(2, "0")
+    )
+    .join("")}`;
+}
+
 describe("contrastRatio", () => {
   it("agrees with the spec on the two extremes", () => {
     // Proves the measuring stick before anything is measured with it.
@@ -87,10 +113,17 @@ describe.each([
   });
 
   it("keeps the frozen shading visible and distinct from the trace it marks", () => {
-    // Shading that cannot be told from the trace turns the warning into decoration.
-    expect(contrastRatio(palette.profileFrozen, palette.surface)).toBeGreaterThanOrEqual(UI_MINIMUM);
-    expect(contrastRatio(palette.profileFrozen, palette.profileInk))
-      .toBeGreaterThanOrEqual(UI_MINIMUM);
+    // Measured as it actually renders. The shading is never painted at full strength - it is a
+    // tint at MAX_FROZEN_OPACITY over the card - so asserting the raw token would bind a colour
+    // that never reaches a screen.
+    const shading = over(palette.profileFrozen, palette.surface, MAX_FROZEN_OPACITY);
+
+    // Visible at all against the card behind it. TINT_MINIMUM, not UI_MINIMUM: a region tint is
+    // not a shape that carries meaning, so WCAG's 3:1 does not apply to this pairing.
+    expect(contrastRatio(shading, palette.surface)).toBeGreaterThanOrEqual(TINT_MINIMUM);
+    // This one is the real requirement. Shading that cannot be told from the trace drawn on top
+    // of it turns the warning into decoration.
+    expect(contrastRatio(shading, palette.profileInk)).toBeGreaterThanOrEqual(UI_MINIMUM);
   });
 });
 

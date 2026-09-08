@@ -58,7 +58,7 @@ export const DARK: Palette = {
   warnBorder: "#4a3c1a",
   warnInk: "#e8d9b0",
   profileInk: "#b0bec5",
-  profileFrozen: "#d9a441",
+  profileFrozen: "#c98f2e",
 };
 
 /**
