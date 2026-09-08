@@ -1,5 +1,6 @@
 import express, { type ErrorRequestHandler } from "express";
 import { telemetryRouter } from "./routes/telemetry";
+import { dashboardRouter } from "./routes/dashboard";
 
 export function createApp() {
   const app = express();
@@ -13,6 +14,10 @@ export function createApp() {
   });
 
   app.use("/v1", telemetryRouter);
+
+  // Mounted after the device API so a future /v1 route can never be shadowed by a dashboard path,
+  // and last before the 404 so the dashboard owns the root without intercepting anything else.
+  app.use(dashboardRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: "Not found" });

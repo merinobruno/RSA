@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import { randomUUID } from "crypto";
-import { readFileSync, readdirSync } from "fs";
-import { join } from "path";
 import { Pool } from "pg";
 import { createApp } from "../../src/app";
 import { hashApiKey } from "../../src/middleware/auth";
@@ -56,18 +54,9 @@ describe.skipIf(!DATABASE_URL)(
 
       // Same TLS decision the app itself makes, so pointing this suite at a managed database
       // works rather than failing with "SSL/TLS required".
+      // The schema is applied by test/globalSetup.ts, once for the whole run rather than per
+      // suite: two suites migrating in parallel raced on CREATE TABLE IF NOT EXISTS.
       setupPool = new Pool({ connectionString: DATABASE_URL, ssl: sslFor(DATABASE_URL) });
-
-      // Apply migrations so the test database has the expected schema.
-      // Safe to re-run: every statement uses IF NOT EXISTS.
-      const migrationsDir = join(__dirname, "..", "..", "migrations");
-      const files = readdirSync(migrationsDir)
-        .filter((f) => f.endsWith(".sql"))
-        .sort();
-      for (const file of files) {
-        const sql = readFileSync(join(migrationsDir, file), "utf8");
-        await setupPool.query(sql);
-      }
 
       app = createApp();
 
