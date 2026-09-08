@@ -77,6 +77,62 @@ object QueuePolicy {
     fun nextDelayMillis(tickDurationMillis: Long): Long =
         (CAPTURE_INTERVAL_MILLIS - tickDurationMillis).coerceAtLeast(MIN_CYCLE_DELAY_MILLIS)
 
+    /**
+     * Below this a reading counts as not moving. 2 m/s is 7 km/h.
+     *
+     * The same number, and the same strict comparison, as `MOVING_SPEED_MPS` in the server's
+     * flight segmentation. One definition of "moving" across both halves of the system: a reading
+     * the server would discard as stationary is not one worth sending sixty times a minute.
+     */
+    const val MOVING_SPEED_MPS: Float = 2f
+
+    /**
+     * How often a packet is queued while nothing is moving.
+     *
+     * At 1 Hz a phone left running in an office records 28,800 rows in eight hours, every one of
+     * them the same place - 9.3 MiB on the server, measured at 338 bytes a row, and a full day of
+     * capture is 27.8 MiB per device. Three phones fill a small managed database in a fortnight.
+     *
+     * The alternative was to queue nothing at all while parked, and that quietly breaks flight
+     * segmentation. The server ends a flight after ten minutes of stationary POINTS but needs more
+     * than fifteen minutes of SILENCE to end one, so a stop between those two lengths would raise
+     * neither signal and two separate outings would be merged into one flight - verified against
+     * segmentStream, where a twelve-minute stop yields two flights with this heartbeat and one
+     * without it.
+     *
+     * Silence is also ambiguous in a way that matters for an aircraft: a phone that has deliberately
+     * stopped sending is indistinguishable from one that died, lost signal, or froze. A heartbeat
+     * says "still here, still at this spot", which is the thing you want on the record.
+     */
+    const val STATIONARY_HEARTBEAT_MILLIS: Long = 30_000L
+
+    /**
+     * Whether a reading is worth queueing.
+     *
+     * Stateless by design - it looks only at this reading and the instant of the last one queued.
+     * A stationary receiver reports speed jittering around zero and will occasionally read above
+     * the threshold; with no mode to fall out of, such a spike costs one extra packet instead of
+     * postponing the heartbeat or dropping the phone back to 1 Hz for a while.
+     *
+     * Note what this does NOT change: the location stream and the capture loop keep running at
+     * 1 Hz. Only the queueing is throttled, so the first moving reading is seen within a second and
+     * no part of a taxi or a takeoff roll is lost to the throttle.
+     */
+    fun shouldEnqueue(
+        speedMps: Float,
+        atEpochMillis: Long,
+        lastEnqueuedAtEpochMillis: Long,
+    ): Boolean {
+        if (lastEnqueuedAtEpochMillis == 0L) return true
+        if (speedMps > MOVING_SPEED_MPS) return true
+        // Absolute difference, because System.currentTimeMillis() is not monotonic: an NTP
+        // correction can put "now" behind the last queued packet, and a plain subtraction would
+        // then stay negative and hold the heartbeat off until the clock caught up.
+        val sinceLast = atEpochMillis - lastEnqueuedAtEpochMillis
+        if (sinceLast < 0) return true
+        return sinceLast >= STATIONARY_HEARTBEAT_MILLIS
+    }
+
     fun isExpired(capturedAtEpochMillis: Long, nowEpochMillis: Long): Boolean =
         nowEpochMillis - capturedAtEpochMillis > MAX_PENDING_AGE_MILLIS
 

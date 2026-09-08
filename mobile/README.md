@@ -1,10 +1,18 @@
 # RSA Telemetry (mobile)
 
 Native Android (Kotlin) app that runs on a phone riding along in a general-aviation aircraft.
-While tracking is active, it captures GPS location + linear acceleration + battery level every 30
-seconds and uploads the readings to a backend server as JSON, over HTTPS. It is built to survive
-intermittent cellular coverage: readings are queued locally first and uploaded opportunistically,
-so a signal gap never loses data.
+While tracking is active, it reads GPS location + linear acceleration + battery level **once a
+second** and uploads them to a backend server as JSON, over HTTPS, **every 30 seconds**. It is
+built to survive intermittent cellular coverage: readings are queued locally first and uploaded
+opportunistically, so a signal gap never loses data.
+
+Reading, queueing and uploading are three different rates, deliberately:
+
+| | Rate | Why |
+|---|---|---|
+| Read a sensor | every second | At 200 km/h a 30-second sample is a point every 1.7 km, which cannot show a turn or a descent. |
+| Queue a packet | every second while moving, every 30 s while stationary | A parked phone would otherwise record 28,800 identical positions in eight hours. |
+| Upload | every 30 seconds | The cost of an upload is establishing the connection, paid per request, not per packet. |
 
 The backend is a separate Node.js/TypeScript project (`../server` in this repository) built in
 parallel; this app only needs to match its `POST /v1/telemetry` contract, documented below under
@@ -65,7 +73,7 @@ mobile/
       ConnectivityChecker.kt        "do we currently have a network?"
       UploadOutcome.kt              result types for the above
     service/
-      TelemetryForegroundService.kt  the 30s capture loop, foreground + notification
+      TelemetryForegroundService.kt  the 1 Hz capture loop and the 30s upload loop, foreground + notification
       NotificationHelper.kt         notification channel + persistent notification
     work/
       RetryUploadWorker.kt           WorkManager backstop flush
@@ -74,7 +82,8 @@ mobile/
 
 ## Packet contract
 
-Every 30 seconds, one packet is built and queued:
+One packet is built and queued per reading that survives `QueuePolicy.shouldEnqueue` -- every
+second while the aircraft is moving, once every 30 seconds while it is not:
 
 ```json
 {
@@ -188,9 +197,11 @@ Two independent trim bounds keep a long outage from growing the queue without li
 
 - **Age**: rows older than **24 hours** are dropped (`QueuePolicy.MAX_PENDING_AGE_MILLIS`). At that
   point the flight this data belongs to is long over.
-- **Row count**: capped at **3,000 rows** (`QueuePolicy.MAX_PENDING_ROWS`), roughly 25 hours at the
-  normal 30-second cadence -- a second, independent bound in case a clock jump ever makes the
-  age-based trim unreliable.
+- **Row count**: capped at **86,400 rows** (`QueuePolicy.MAX_PENDING_ROWS`), a full day at 1 Hz --
+  a second, independent bound in case a clock jump ever makes the age-based trim unreliable. It had
+  to grow with the capture rate: the previous cap of 3,000 rows held 25 hours at the old 30-second
+  cadence and would hold **50 minutes** at 1 Hz, against a 62-minute outage actually recorded in
+  the field.
 
 Both are plain constants/functions in `QueuePolicy.kt` (no Room/Android import), so the thresholds
 themselves are unit tested without a database. Rejected rows (below) are trimmed on the same age
@@ -221,8 +232,10 @@ is still counted, so the number shown never under-reports; it just has no row to
 An upload attempt is triggered from two independent places, matching the brief's requirement to
 flush both right after a capture and to catch up after an outage:
 
-1. **After every capture tick**, `TelemetryForegroundService` calls `TelemetryUploader.flushPending()`
-   directly, in-process.
+1. **Every 30 seconds**, an upload loop in `TelemetryForegroundService` calls
+   `TelemetryUploader.flushPending()` directly, in-process. This is its own loop rather than part of
+   the capture tick: an upload measured at ~10 s on the weak phone would otherwise have stalled ten
+   captures, which is what made 1 Hz unachievable there.
 2. **A `WorkManager` periodic job** (`RetryUploadWorker`, every 15 minutes -- WorkManager's documented
    minimum periodic interval, so more frequent isn't possible with it) with a `NetworkType.CONNECTED`
    constraint. WorkManager re-evaluates that constraint continuously, so a run that could not fire

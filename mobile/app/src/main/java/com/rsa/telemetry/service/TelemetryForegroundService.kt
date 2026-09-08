@@ -31,10 +31,14 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * Foreground service that owns the capture loop: every 30 seconds, while running, it takes one
- * location + acceleration + battery reading, queues it, and triggers an upload attempt. Runs with
- * a persistent notification (required by the platform for any long-lived background work) and
- * declares the `location` foreground service type mandated on API 34+.
+ * Foreground service that owns the capture loop: once a second, while running, it takes one
+ * location + acceleration + battery reading and queues it. Uploading runs on its own loop every
+ * 30 seconds. Runs with a persistent notification (required by the platform for any long-lived
+ * background work) and declares the `location` foreground service type mandated on API 34+.
+ *
+ * Reading and queueing are not the same rate. While nothing is moving, readings are still taken
+ * every second but only one every 30 seconds is queued - see [QueuePolicy.shouldEnqueue] for why
+ * the readings keep being taken and why the queueing is throttled rather than stopped.
  *
  * Started explicitly by the user from [com.rsa.telemetry.MainActivity]; never auto-starts itself,
  * so a grounded aircraft never has the app quietly draining its battery.
@@ -154,6 +158,18 @@ class TelemetryForegroundService : LifecycleService() {
             accelZ = accel.getOrElse(2) { 0f },
             batteryPct = BatteryReader.currentBatteryPercent(this),
         )
+
+        // Nothing is moving and the heartbeat is not due: read, discard, come back in a second. The
+        // stream keeps running, so the next moving reading is still seen within one second - what
+        // is dropped is only the sixtieth copy of a position that has not changed.
+        if (!QueuePolicy.shouldEnqueue(
+                speedMps = reading.speedMps,
+                atEpochMillis = reading.capturedAtEpochMillis,
+                lastEnqueuedAtEpochMillis = lastCaptureEpochMillis,
+            )
+        ) {
+            return
+        }
 
         val packet = PacketFactory.createPacket(reading, deviceId = container.settingsRepository.deviceId)
         lastPacket = packet
