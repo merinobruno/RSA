@@ -167,7 +167,7 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
           ${escapeHtml(Math.round(toFeet(minElevM)))} ft
           <span class="stat-metric">${escapeHtml(maxElevM.toFixed(1))} /
           ${escapeHtml(minElevM.toFixed(1))} m</span></div>
-        <div class="stat-label" title="Elevación GPS: altura sobre el elipsoide WGS84, no altitud.">ELEV GPS máx/mín</div>
+        <div class="stat-label">ELEV GPS máx/mín</div>
       </div>
     </div>`;
 

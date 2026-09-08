@@ -234,15 +234,17 @@ describe("flightDetailPage", () => {
     expect(html).not.toContain(">Velocidad<");
   });
 
-  it("names the elevation for the datum it is actually measured against", () => {
+  it("names the elevation for the datum it is actually measured against (Task 4 half)", () => {
     // Not "altitud": it is neither above mean sea level nor pressure altitude, and calling it
-    // altitude is the first step toward believing it.
+    // altitude is the first step toward believing it. The datum itself is stated once, in visible
+    // text under the profile - Task 5 renders it and asserts it. Do not add a second statement of
+    // it here, and do not hide it in a title attribute: a qualification this load-bearing does not
+    // belong somewhere a touch or keyboard reader never reaches.
     const points = track(10);
 
     const html = flightDetailPage(summaryFor(points), points);
 
     expect(html).toContain("ELEV GPS");
-    expect(html).toContain("WGS84");
   });
 
   it("carries an elevation in feet for every point so the readout can state one", () => {

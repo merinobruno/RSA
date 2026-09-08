@@ -19,4 +19,14 @@ describe("bandSpeedBoundsKt", () => {
 
     expect(bounds.every((b) => b.fromKt === 0 && b.toKt === 0)).toBe(true);
   });
+
+  it("leaves no gap or overlap between neighbouring slices", () => {
+    // Ported from the bandSpeedBoundsKmh block this rename retires. A legend with a gap between
+    // two swatches describes a speed the line can be drawn in but the key does not name.
+    const bounds = bandSpeedBoundsKt(50);
+
+    for (let i = 1; i < bounds.length; i++) {
+      expect(bounds[i].fromKt).toBe(bounds[i - 1].toKt);
+    }
+  });
 });
