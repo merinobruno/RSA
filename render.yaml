@@ -22,6 +22,11 @@ services:
     plan: free
     region: oregon
     rootDir: server
+    # Stated explicitly rather than relied on as a default: a push that silently does not deploy
+    # leaves the running service and the repository claiming different things, and the only symptom
+    # is a feature that is missing for no visible reason.
+    branch: main
+    autoDeploy: true
     buildCommand: npm ci && npm run build
     startCommand: npm start
     # Render restarts the service if this stops answering. The endpoint touches no database, so it
