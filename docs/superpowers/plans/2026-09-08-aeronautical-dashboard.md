@@ -1305,7 +1305,7 @@ Add inside `show(i)`, immediately before `if (scrub && scrub.value !== String(i)
           var profileX = (p[3] / profileSeconds) * profileColumns;
           profileCursor.setAttribute('x1', profileX);
           profileCursor.setAttribute('x2', profileX);
-          // removeAttribute, not .hidden: `hidden` is an HTMLElement property and an SVG element
+          // removeAttribute, not .hidden: hidden is an HTMLElement property, and an SVG element
           // would take the assignment as an expando and never show the line.
           profileCursor.removeAttribute('hidden');
         }
