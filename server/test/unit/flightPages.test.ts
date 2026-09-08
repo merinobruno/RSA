@@ -269,6 +269,93 @@ describe("flightDetailPage", () => {
     expect(payload.points[0][4]).toBe(187);
     expect(payload.points[0]).toHaveLength(6);
   });
+
+  it("draws the elevation as a profile rather than leaving it to a number", () => {
+    const points = track(600);
+
+    const html = flightDetailPage(summaryFor(points), points);
+
+    expect(html).toContain('class="profile-svg"');
+    expect(html).toContain('id="profile-cursor"');
+    expect(html).toMatch(/class="profile-envelope"/);
+  });
+
+  it("states the datum the elevation is measured against, in visible text", () => {
+    // "ELEV GPS" alone names nothing a reader can check. The qualification lives here, once, in
+    // the profile note - not in a title attribute a touch or keyboard reader never reaches.
+    const points = track(600);
+
+    const html = flightDetailPage(summaryFor(points), points);
+    const note = /<span class="profile-note">([\s\S]*?)<\/span>/.exec(html);
+
+    expect(note).not.toBeNull();
+    expect(note![1]).toContain("WGS84");
+  });
+
+  it("shades the profile where the recorded value simply repeated", () => {
+    // The fixture track never changes altitude, which is exactly the ground behaviour the warning
+    // describes. Every column should be shaded at full strength.
+    const points = track(600);
+
+    const html = flightDetailPage(summaryFor(points), points);
+    const shading = html.match(/class="profile-frozen" fill-opacity="([\d.]+)"/g) ?? [];
+
+    expect(shading.length).toBeGreaterThan(0);
+    expect(html).toContain('fill-opacity="0.550"');
+  });
+
+  it("leaves the profile unshaded when the value actually moves", () => {
+    const points = track(600, () => 30);
+    points.forEach((p, i) => {
+      p.altitudeM = 300 + i;
+    });
+
+    const html = flightDetailPage(summaryFor(points), points);
+
+    expect(html).not.toContain('class="profile-frozen"');
+  });
+
+  it("scales a flat profile to the floor instead of magnifying the quantisation", () => {
+    // 0.3 m of recorded variation. Autoscaled, 10 cm of noise would fill the frame.
+    const points = track(600);
+    points.forEach((p, i) => {
+      p.altitudeM = 300 + (i % 4) * 0.1;
+    });
+
+    const html = flightDetailPage(summaryFor(points), points);
+    const axis = /<div class="profile-axis">([\s\S]*?)<\/div>/.exec(html);
+
+    expect(axis).not.toBeNull();
+    const labels = (axis![1].match(/-?\d+/g) ?? []).map(Number);
+    expect(Math.max(...labels) - Math.min(...labels)).toBe(100);
+  });
+
+  it("omits the profile for a flight that has no shape to draw", () => {
+    const points = track(1);
+
+    const html = flightDetailPage(summaryFor(points), points);
+
+    expect(html).not.toContain('class="profile-svg"');
+  });
+
+  it("keeps the map, the profile and the inspector in that order as one card", () => {
+    const points = track(120);
+
+    const html = flightDetailPage(summaryFor(points), points);
+
+    expect(html.indexOf('id="map"')).toBeLessThan(html.indexOf('class="profile"'));
+    expect(html.indexOf('class="profile"')).toBeLessThan(html.indexOf('class="inspector"'));
+  });
+
+  it("no longer claims the altitude is not graphed, but still says it is not trustworthy", () => {
+    const points = track(10);
+
+    const html = flightDetailPage(summaryFor(points), points);
+
+    expect(html).toContain("no es confiable");
+    expect(html).not.toContain("no se grafica");
+    expect(html).toContain("sombreada");
+  });
 });
 
 describe("flightListPage", () => {

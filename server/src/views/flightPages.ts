@@ -4,6 +4,7 @@ import type { FlightSummary, TrackPoint } from "../db/flightRepository";
 import { trackDistanceMetres } from "../services/flightSegmentation";
 import { SPEED_BAND_COUNT, bandTrack } from "../services/trackBanding";
 import { KNOTS_PER_MPS, formatKnots, formatNauticalMiles, toFeet } from "../services/units";
+import { profileColumns, profileScale } from "../services/verticalProfile";
 
 /**
  * Every timestamp a human reads in this system is local; every timestamp stored or transmitted is
@@ -26,6 +27,15 @@ const TZ_OFFSET_MINUTES = -180;
  * optional here.
  */
 const HOUR_CYCLE = "h23" as const;
+
+/**
+ * Finer than one column per pixel at the page's 960px maximum, and capped by profileColumns to the
+ * sample count so a short flight simply produces fewer.
+ */
+const PROFILE_COLUMNS = 720;
+
+/** The SVG's viewBox height, and its CSS height in pixels - so one y unit is one pixel. */
+const PROFILE_HEIGHT = 120;
 
 function localDateTime(d: Date): string {
   return new Intl.DateTimeFormat("es-AR", {
@@ -228,6 +238,77 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
       ${scrub}
     </div>`;
 
+  const columns = profileColumns(points, PROFILE_COLUMNS);
+  const scale = profileScale(columns);
+  const spanFt = scale.maxFt - scale.minFt;
+  const yOf = (ft: number): number => ((scale.maxFt - ft) / spanFt) * PROFILE_HEIGHT;
+
+  // Full-height bands behind the trace, tinted by how much of the column repeated. Drawn first so
+  // the trace stays on top of its own caveat rather than under it.
+  const frozenBands = columns
+    .filter((c) => c.sampleCount > 0 && c.frozenFraction > 0)
+    .map(
+      (c) =>
+        `<rect class="profile-frozen" fill-opacity="${escapeHtml(
+          (c.frozenFraction * 0.55).toFixed(3)
+        )}" x="${escapeHtml(c.x)}" y="0" width="1" height="${escapeHtml(PROFILE_HEIGHT)}"/>`
+    )
+    .join("");
+
+  // One rect per column, and columns a coverage gap left empty are simply skipped: a line drawn
+  // across a gap is a measurement nobody took. A floor of 1.5 units keeps a flat column visible
+  // instead of collapsing it to nothing.
+  const envelope = columns
+    .filter((c) => c.sampleCount > 0)
+    .map((c) => {
+      const top = yOf(c.maxFt);
+      const height = Math.max(yOf(c.minFt) - top, 1.5);
+      return `<rect class="profile-envelope" x="${escapeHtml(c.x)}" y="${escapeHtml(
+        top.toFixed(2)
+      )}" width="1" height="${escapeHtml(height.toFixed(2))}"/>`;
+    })
+    .join("");
+
+  const midInstant = new Date((flight.startedAt.getTime() + flight.endedAt.getTime()) / 2);
+
+  // Tick labels live in HTML around the SVG, never inside it: the viewBox stretches to the card's
+  // width with preserveAspectRatio="none", which would stretch any text drawn in it with it.
+  const profile =
+    columns.length === 0
+      ? ""
+      : `
+    <div class="profile">
+      <div class="profile-head">
+        <span class="profile-title">ELEV GPS</span>
+        <span class="profile-note">sobre elipsoide WGS84 · las franjas sombreadas repiten el valor
+          del fix anterior</span>
+      </div>
+      <div class="profile-plot">
+        <svg class="profile-svg" viewBox="0 0 ${escapeHtml(columns.length)} ${escapeHtml(
+          PROFILE_HEIGHT
+        )}" preserveAspectRatio="none" role="img"
+             aria-label="Perfil de elevación GPS, de ${escapeHtml(
+               Math.round(scale.minFt)
+             )} a ${escapeHtml(Math.round(scale.maxFt))} pies. Las franjas sombreadas marcan los
+             tramos donde el valor registrado repite el del fix anterior.">
+          ${frozenBands}
+          ${envelope}
+          <line class="profile-cursor" id="profile-cursor" vector-effect="non-scaling-stroke"
+                x1="0" y1="0" x2="0" y2="${escapeHtml(PROFILE_HEIGHT)}" hidden/>
+        </svg>
+        <div class="profile-axis">
+          <span>${escapeHtml(Math.round(scale.maxFt))} ft</span>
+          <span>${escapeHtml(Math.round((scale.minFt + scale.maxFt) / 2))}</span>
+          <span>${escapeHtml(Math.round(scale.minFt))}</span>
+        </div>
+      </div>
+      <div class="profile-ticks">
+        <span>${escapeHtml(localTime(flight.startedAt))}</span>
+        <span>${escapeHtml(localTime(midInstant))}</span>
+        <span>${escapeHtml(localTime(flight.endedAt))}</span>
+      </div>
+    </div>`;
+
   const head = `
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
@@ -241,14 +322,17 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
     </p>
     ${stats}
     <div id="map"></div>
+    ${profile}
     ${inspector}
     <div class="warning">
       <strong>La altitud de este vuelo no es confiable.</strong>
       El valor que registra el sistema viene en escalones de 10 cm, resultó idéntico bit a bit entre
       dos teléfonos distintos en el mismo lugar, y no cambió en el 63% de los fixes consecutivos
       estando quieto — con el GPS declarando ±15 m de error. Sigue el terreno, que en tierra es
-      indistinguible de la altura real y deja de serlo apenas el avión despega. Por eso no se
-      grafica.
+      indistinguible de la altura real y deja de serlo apenas el avión despega. Por eso el perfil se
+      dibuja con esa evidencia encima: donde el valor repite el del fix anterior, la franja está
+      sombreada. En tierra eso cubre casi todo el recorrido. Si en un vuelo real esas marcas
+      desaparecen, el número es una medición y no un modelo de terreno.
     </div>
     <script>
       var flight = ${flightPayload(points)};
@@ -327,6 +411,9 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
       var speedCell = document.getElementById('r-speed');
       var headingCell = document.getElementById('r-heading');
       var elevCell = document.getElementById('r-elev');
+      var profileCursor = document.getElementById('profile-cursor');
+      var profileColumns = ${columns.length};
+      var profileSeconds = points.length > 1 ? points[points.length - 1][3] : 0;
       var cursor = L.circleMarker([0, 0], {
         radius: 6, color: '#ffffff', weight: 2, fillColor: '#0288d1', fillOpacity: 1
       });
@@ -350,6 +437,16 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
         readout.hidden = false;
         hint.hidden = true;
         cursor.setLatLng([p[0], p[1]]).addTo(map);
+        if (profileCursor && profileSeconds > 0) {
+          // The cursor is placed in viewBox units, which are columns - so the same number of
+          // seconds always lands on the same column whatever width the card ends up.
+          var profileX = (p[3] / profileSeconds) * profileColumns;
+          profileCursor.setAttribute('x1', profileX);
+          profileCursor.setAttribute('x2', profileX);
+          // removeAttribute, not .hidden: \`hidden\` is an HTMLElement property and an SVG element
+          // would take the assignment as an expando and never show the line.
+          profileCursor.removeAttribute('hidden');
+        }
         if (scrub && scrub.value !== String(i)) scrub.value = i;
       }
 

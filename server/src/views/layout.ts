@@ -93,6 +93,53 @@ const STYLES = `
   .stat-warn { color: var(--warnInk); }
   #map { height: 56vh; min-height: 320px; border-radius: 8px 8px 0 0; border: 1px solid var(--border); }
 
+  /* The middle piece of the map card: the map rounds its top, the inspector rounds its bottom, and
+     this joins them with no radius of its own. */
+  .profile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 0;
+    padding: 12px 16px 10px;
+  }
+  .profile-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .profile-title {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .profile-note { font-size: 12px; color: var(--muted); }
+  .profile-plot { display: flex; align-items: stretch; gap: 8px; }
+  /* The viewBox is one unit per column and 120 tall, stretched to whatever width the card has -
+     so nothing the server draws needs to know the rendered pixel width. */
+  .profile-svg { flex: 1; min-width: 0; height: 120px; display: block; }
+  .profile-envelope { fill: var(--profileInk); }
+  .profile-frozen { fill: var(--profileFrozen); }
+  .profile-cursor { stroke: var(--ink); stroke-width: 1; }
+  .profile-axis {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    text-align: right;
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .profile-ticks {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 3px;
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
   /* The inspector sits under the map rather than floating over it: it never hides the track, it
      needs no stacking order against Leaflet's own panes, and on a narrow screen it has room to
      state a full line instead of being squeezed into a corner. */
