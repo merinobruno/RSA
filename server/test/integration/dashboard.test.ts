@@ -134,6 +134,38 @@ describe.skipIf(!DATABASE_URL)("flight dashboard (integration)", () => {
       expect(res.text).toContain("no es confiable");
     });
 
+    it("draws the elevation profile from real rows", async () => {
+      const list = await request(app).get("/api/flights");
+      const flight = ourFlights(list.body)[0] as never & { started_at: string };
+
+      const res = await request(app).get(`/flights/${deviceId}/${Date.parse(flight.started_at)}`);
+
+      expect(res.text).toContain('class="profile-svg"');
+      expect(res.text).toContain('class="profile-envelope"');
+    });
+
+    it("shades a fixture whose elevation never moves as entirely frozen", async () => {
+      // Every row in this fixture carries altitude_m = 300, which is the stuck-value signature the
+      // warning describes. If the shading does not appear here, it will not appear anywhere.
+      const list = await request(app).get("/api/flights");
+      const flight = ourFlights(list.body)[0] as never & { started_at: string };
+
+      const res = await request(app).get(`/flights/${deviceId}/${Date.parse(flight.started_at)}`);
+
+      expect(res.text).toContain('fill-opacity="0.550"');
+    });
+
+    it("reads the whole page in aviation units", async () => {
+      const list = await request(app).get("/api/flights");
+      const flight = ourFlights(list.body)[0] as never & { started_at: string };
+
+      const res = await request(app).get(`/flights/${deviceId}/${Date.parse(flight.started_at)}`);
+
+      expect(res.text).toContain("NM");
+      expect(res.text).toContain("kt");
+      expect(res.text).toContain("ELEV GPS");
+    });
+
     it("shows times on a 24-hour clock", async () => {
       // es-AR defaults to 12-hour and rendered 19:16 as "07:16 p. m.", which is ambiguous and not
       // how a flight time is ever stated.
