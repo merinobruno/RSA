@@ -530,11 +530,48 @@ In `server/test/unit/theme.contrast.test.ts`, add these three tests inside the e
   });
 
   it("keeps the frozen shading visible and distinct from the trace it marks", () => {
-    // Shading that cannot be told from the trace turns the warning into decoration.
-    expect(contrastRatio(palette.profileFrozen, palette.surface)).toBeGreaterThanOrEqual(UI_MINIMUM);
-    expect(contrastRatio(palette.profileFrozen, palette.profileInk))
-      .toBeGreaterThanOrEqual(UI_MINIMUM);
+    // Measured as it actually renders. The shading is never painted at full strength - it is a
+    // tint at MAX_FROZEN_OPACITY over the card - so asserting the raw token would bind a colour
+    // that never reaches a screen.
+    const shading = over(palette.profileFrozen, palette.surface, MAX_FROZEN_OPACITY);
+
+    // Visible at all against the card behind it. TINT_MINIMUM, not UI_MINIMUM: a region tint is
+    // not a shape that carries meaning, so WCAG's 3:1 does not apply to this pairing.
+    expect(contrastRatio(shading, palette.surface)).toBeGreaterThanOrEqual(TINT_MINIMUM);
+    // This one is the real requirement. Shading that cannot be told from the trace drawn on top
+    // of it turns the warning into decoration.
+    expect(contrastRatio(shading, palette.profileInk)).toBeGreaterThanOrEqual(UI_MINIMUM);
   });
+```
+
+And add these three helpers at module level in the same file, after the existing `UI_MINIMUM` constant (line 30):
+
+```ts
+/** The strongest the profile ever paints a frozen column. Task 5 renders at this opacity. */
+const MAX_FROZEN_OPACITY = 0.55;
+
+/**
+ * A floor for "perceptible as a tint", not a WCAG threshold - the spec sets none for a shaded
+ * region, because a tint is not a shape whose form has to be read. The accessibility requirement
+ * for this pairing is the trace-on-shading ratio below it.
+ */
+const TINT_MINIMUM = 1.5;
+
+/** Alpha compositing, so a colour can be measured as it renders rather than as it is declared. */
+function over(foreground: string, background: string, alpha: number): string {
+  const channels = (hex: string) =>
+    [0, 2, 4].map((i) => parseInt(hex.replace("#", "").slice(i, i + 2), 16));
+  const [fr, fg, fb] = channels(foreground);
+  const [br, bg, bb] = channels(background);
+
+  return `#${[[fr, br], [fg, bg], [fb, bb]]
+    .map(([f, b]) =>
+      Math.round(f * alpha + b * (1 - alpha))
+        .toString(16)
+        .padStart(2, "0")
+    )
+    .join("")}`;
+}
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -567,8 +604,13 @@ Add to `DARK` after `warnInk: "#e8d9b0",` (line 53):
 
 ```ts
   profileInk: "#b0bec5",
-  profileFrozen: "#d9a441",
+  profileFrozen: "#c98f2e",
 ```
+
+Not the light theme's `#b26a00`, and not a lighter amber either. Composited at
+`MAX_FROZEN_OPACITY` over the dark card, an amber any brighter than this lands within 2.7:1 of
+`profileInk` — the pale trace stops separating from its own shading exactly where the shading is
+densest, which is where the reader most needs to read it.
 
 - [ ] **Step 4: Run the whole unit suite and the type check**
 
