@@ -1,5 +1,5 @@
 import { escapeHtml, page } from "./layout";
-import { FAST_HUE, SLOW_HUE } from "./theme";
+import { SPEED_RAMP, bandColour, bandSpeedBoundsKmh } from "./theme";
 import type { FlightSummary, TrackPoint } from "../db/flightRepository";
 import { trackDistanceMetres } from "../services/flightSegmentation";
 import { SPEED_BAND_COUNT, bandTrack } from "../services/trackBanding";
@@ -112,7 +112,8 @@ function flightPayload(points: TrackPoint[]): string {
       SPEED_BAND_COUNT
     ).map((b) => ({
       band: b.band,
-      hue: Math.round(SLOW_HUE + ((FAST_HUE - SLOW_HUE) * b.band) / (SPEED_BAND_COUNT - 1)),
+      // The same array the legend renders, so the key under the map cannot drift from the line.
+      color: bandColour(b.band),
       ranges: b.ranges,
     })),
   };
@@ -162,8 +163,30 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
                 value="0" step="1" aria-label="Punto del vuelo">`
       : "";
 
+  // The ramp is relative to this flight's fastest point, so the key states this flight's numbers.
+  // Three ticks rather than eight: the reader needs the scale, not a number per step.
+  const bounds = bandSpeedBoundsKmh(flight.maxSpeedMps);
+  const topKmh = bounds[bounds.length - 1].toKmh;
+  const legend = `
+    <div class="legend" aria-label="Escala de color de la traza, de ${escapeHtml(
+      bounds[0].fromKmh
+    )} a ${escapeHtml(topKmh)} km/h">
+      <span class="legend-title">Velocidad</span>
+      <div class="legend-scale">
+        <div class="legend-steps" aria-hidden="true">${SPEED_RAMP.map(
+          (step) => `<span class="legend-step" style="background: ${escapeHtml(step)}"></span>`
+        ).join("")}</div>
+        <div class="legend-ticks">
+          <span>${escapeHtml(bounds[0].fromKmh)}</span>
+          <span>${escapeHtml(Math.round(topKmh / 2))}</span>
+          <span>${escapeHtml(topKmh)} km/h</span>
+        </div>
+      </div>
+    </div>`;
+
   const inspector = `
     <div class="inspector">
+      ${legend}
       <div class="readout" id="readout" hidden>
         <div class="readout-item">
           <span class="readout-label">Hora</span>
@@ -225,7 +248,7 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
       flight.bands.forEach(function (band) {
         L.polyline(
           band.ranges.map(function (r) { return latlngs.slice(r[0], r[1] + 1); }),
-          { color: 'hsl(' + band.hue + ', 85%, 45%)', weight: 4, opacity: 0.9 }
+          { color: band.color, weight: 4, opacity: 0.9 }
         ).addTo(map);
       });
 

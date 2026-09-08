@@ -63,9 +63,58 @@ export const HEADER = {
   link: "#9fc4ff",
 } as const;
 
-/** Speed ramp for the track: blue where the aircraft is slow, red where it is fast. */
-export const SLOW_HUE = 210;
-export const FAST_HUE = 0;
+/**
+ * The colour of each speed band, slowest step first - one entry per band, which the tests hold
+ * equal to SPEED_BAND_COUNT. Stated as data for the same reason the palette is: the legend under
+ * the map and the line drawn on it both read this array, so they cannot describe different things.
+ *
+ * These steps are a hue ramp (blue through green and yellow to red). Measured as a magnitude ramp
+ * it fails on four counts: lightness is not monotone, the slowest and fastest steps land at almost
+ * the same lightness (0.558 against 0.551, indistinguishable in greyscale or with severe colour
+ * blindness), four middle steps sit within 0.025 of each other, and the yellow step is 1.55:1
+ * against a pale map tile. A single-hue ramp measured clean on all four:
+ *
+ *   #d1a5db #bf90ca #ae7aba #9d65a9 #8c5099 #7b3a89 #6a2379 #590369
+ *
+ * Swapping the two lists is the whole change - nothing else reads the hues.
+ */
+export const SPEED_RAMP = [
+  "#1173d4",
+  "#11d4d4",
+  "#11d473",
+  "#11d411",
+  "#73d411",
+  "#d4d411",
+  "#d47311",
+  "#d41111",
+] as const;
+
+export function bandColour(band: number): string {
+  const index = Math.min(Math.max(Math.round(band), 0), SPEED_RAMP.length - 1);
+  return SPEED_RAMP[index];
+}
+
+export interface BandSpeedBounds {
+  fromKmh: number;
+  toKmh: number;
+}
+
+/**
+ * The speed each band stands for, in km/h.
+ *
+ * Bands are relative to the fastest point of the flight being viewed, not to an absolute speed, so
+ * the legend has to be computed per flight. Printing one fixed scale under a relative ramp would
+ * state something that is not true of the picture above it.
+ */
+export function bandSpeedBoundsKmh(maxSpeedMps: number): BandSpeedBounds[] {
+  const maxKmh = Math.max(maxSpeedMps, 0) * 3.6;
+  const step = maxKmh / SPEED_RAMP.length;
+
+  return SPEED_RAMP.map((_, band) => ({
+    fromKmh: Math.round(step * band),
+    toKmh: Math.round(step * (band + 1)),
+  }));
+}
 
 export function cssVariables(palette: Palette): string {
   return (Object.keys(palette) as Array<keyof Palette>)

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { flightDetailPage, flightListPage } from "../../src/views/flightPages";
 import { SPEED_BAND_COUNT } from "../../src/services/trackBanding";
+import { SPEED_RAMP } from "../../src/views/theme";
 import type { FlightSummary, TrackPoint } from "../../src/db/flightRepository";
 
 const SECOND = 1000;
@@ -35,7 +36,7 @@ function summaryFor(points: TrackPoint[]): FlightSummary {
 function payloadOf(html: string): {
   startedAt: number;
   points: Array<[number, number, number, number, number]>;
-  bands: Array<{ band: number; hue: number; ranges: Array<[number, number]> }>;
+  bands: Array<{ band: number; color: string; ranges: Array<[number, number]> }>;
 } {
   const match = /var flight = (\{.*?\});/s.exec(html);
   if (!match) throw new Error("The page embeds no flight payload.");
@@ -65,16 +66,14 @@ describe("flightDetailPage", () => {
     expect(covered).toBe(499);
   });
 
-  it("gives each band a hue from the slow end of the ramp to the fast end", () => {
+  it("colours each band from the shared ramp so the legend matches the line", () => {
     const points = track(200, (i) => i * 0.5);
 
     const { bands } = payloadOf(flightDetailPage(summaryFor(points), points));
-    const hues = bands.map((b) => b.hue);
 
-    // Slow is blue, fast is red: the hue has to fall as the band rises.
-    expect(hues).toEqual([...hues].sort((a, b) => b - a));
-    expect(Math.max(...hues)).toBeLessThanOrEqual(210);
-    expect(Math.min(...hues)).toBeGreaterThanOrEqual(0);
+    for (const band of bands) {
+      expect(band.color).toBe(SPEED_RAMP[band.band]);
+    }
   });
 
   it("carries a capture time for every point so the readout can state one", () => {
@@ -114,6 +113,39 @@ describe("flightDetailPage", () => {
 
     expect(html).toContain('id="readout"');
     expect(html).toContain('type="range"');
+  });
+
+  it("explains what the colours of the line mean", () => {
+    // A speed-coloured track with no key is a decoration. One swatch per band, in ramp order.
+    const points = track(300, (i) => i * 0.2);
+
+    const html = flightDetailPage(summaryFor(points), points);
+    const swatches = html.match(/class="legend-step"[^>]*background:\s*(#[0-9a-f]{6})/g) ?? [];
+
+    expect(swatches).toHaveLength(SPEED_BAND_COUNT);
+    SPEED_RAMP.forEach((step) => expect(html).toContain(step));
+  });
+
+  it("labels the legend with this flight's own speeds, not a fixed scale", () => {
+    // The ramp is relative to the flight's fastest point, so the top of the legend has to be the
+    // same number the stats report as the maximum.
+    const points = track(300, (i) => (i < 150 ? 10 : 40));
+    const flight = summaryFor(points);
+
+    const html = flightDetailPage(flight, points);
+    const legend = /<div class="legend"[\s\S]*?<\/div>\s*<\/div>/.exec(html);
+
+    expect(legend).not.toBeNull();
+    expect(legend![0]).toContain(String(Math.round(flight.maxSpeedMps * 3.6)));
+    expect(legend![0]).toContain("km/h");
+  });
+
+  it("gives the legend a text description rather than colour alone", () => {
+    const points = track(60, () => 30);
+
+    const html = flightDetailPage(summaryFor(points), points);
+
+    expect(html).toMatch(/aria-label="[^"]*km\/h[^"]*"/);
   });
 
   it("links back to the flight list with an affordance of its own", () => {

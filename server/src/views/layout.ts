@@ -98,6 +98,30 @@ const STYLES = `
     border-radius: 0 0 8px 8px;
     padding: 12px 16px 14px;
   }
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 8px 14px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .legend-title {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .legend-scale { flex: 1 1 200px; max-width: 420px; }
+  .legend-steps { display: flex; height: 10px; border-radius: 5px; overflow: hidden; }
+  .legend-step { flex: 1; }
+  .legend-ticks {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 3px;
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
   .readout {
     display: flex;
     flex-wrap: wrap;
