@@ -261,8 +261,13 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
   const envelope = columns
     .filter((c) => c.sampleCount > 0)
     .map((c) => {
-      const top = yOf(c.maxFt);
-      const height = Math.max(yOf(c.minFt) - top, 1.5);
+      const height = Math.max(yOf(c.minFt) - yOf(c.maxFt), 1.5);
+      // The floor has to grow upward once a column reaches the bottom of the frame. A flat column
+      // at the flight's lowest recorded value lands on y = PROFILE_HEIGHT exactly, and giving it
+      // height from there puts it past the viewBox, where the SVG clips it away entirely - and the
+      // columns sitting at that lowest value are the stationary ground stretches this whole chart
+      // exists to make visible.
+      const top = Math.min(yOf(c.maxFt), PROFILE_HEIGHT - height);
       return `<rect class="profile-envelope" x="${escapeHtml(c.x)}" y="${escapeHtml(
         top.toFixed(2)
       )}" width="1" height="${escapeHtml(height.toFixed(2))}"/>`;
@@ -412,7 +417,9 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
       var headingCell = document.getElementById('r-heading');
       var elevCell = document.getElementById('r-elev');
       var profileCursor = document.getElementById('profile-cursor');
-      var profileColumns = ${columns.length};
+      // Not "profileColumns": that is the name of the server-side function that produced this
+      // number, and the two live in different scopes only by accident of where they are written.
+      var profileColumnCount = ${columns.length};
       var profileSeconds = points.length > 1 ? points[points.length - 1][3] : 0;
       var cursor = L.circleMarker([0, 0], {
         radius: 6, color: '#ffffff', weight: 2, fillColor: '#0288d1', fillOpacity: 1
@@ -440,7 +447,7 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
         if (profileCursor && profileSeconds > 0) {
           // The cursor is placed in viewBox units, which are columns - so the same number of
           // seconds always lands on the same column whatever width the card ends up.
-          var profileX = (p[3] / profileSeconds) * profileColumns;
+          var profileX = (p[3] / profileSeconds) * profileColumnCount;
           profileCursor.setAttribute('x1', profileX);
           profileCursor.setAttribute('x2', profileX);
           // removeAttribute, not .hidden: \`hidden\` is an HTMLElement property and an SVG element

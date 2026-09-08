@@ -330,6 +330,28 @@ describe("flightDetailPage", () => {
     expect(Math.max(...labels) - Math.min(...labels)).toBe(100);
   });
 
+  it("keeps every envelope rect inside the frame, including the lowest column", () => {
+    // A flat column at the flight's lowest recorded value lands on the viewBox floor exactly, and
+    // the minimum height that keeps a flat column visible would push it past the edge, where the
+    // SVG clips it away. Those lowest columns are the stationary ground stretches this chart
+    // exists to show, so losing them silently loses the point of the feature.
+    const points = track(600);
+    points.forEach((p, i) => {
+      p.altitudeM = 300 + i;
+    });
+
+    const html = flightDetailPage(summaryFor(points), points);
+    const rects = [
+      ...html.matchAll(/class="profile-envelope" x="\d+" y="([\d.]+)" width="1" height="([\d.]+)"/g),
+    ];
+
+    expect(rects.length).toBeGreaterThan(0);
+    for (const [, y, height] of rects) {
+      expect(Number(y)).toBeGreaterThanOrEqual(0);
+      expect(Number(y) + Number(height)).toBeLessThanOrEqual(120);
+    }
+  });
+
   it("omits the profile for a flight that has no shape to draw", () => {
     const points = track(1);
 
