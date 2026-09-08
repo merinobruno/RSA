@@ -1,3 +1,5 @@
+import { toKnots } from "../services/units";
+
 /**
  * The dashboard's colours, as data rather than as literals buried in a stylesheet.
  *
@@ -103,24 +105,24 @@ export function bandColour(band: number): string {
 }
 
 export interface BandSpeedBounds {
-  fromKmh: number;
-  toKmh: number;
+  fromKt: number;
+  toKt: number;
 }
 
 /**
- * The speed each band stands for, in km/h.
+ * The speed each band stands for, in knots.
  *
  * Bands are relative to the fastest point of the flight being viewed, not to an absolute speed, so
  * the legend has to be computed per flight. Printing one fixed scale under a relative ramp would
  * state something that is not true of the picture above it.
  */
-export function bandSpeedBoundsKmh(maxSpeedMps: number): BandSpeedBounds[] {
-  const maxKmh = Math.max(maxSpeedMps, 0) * 3.6;
-  const step = maxKmh / SPEED_RAMP.length;
+export function bandSpeedBoundsKt(maxSpeedMps: number): BandSpeedBounds[] {
+  const maxKt = toKnots(Math.max(maxSpeedMps, 0));
+  const step = maxKt / SPEED_RAMP.length;
 
   return SPEED_RAMP.map((_, band) => ({
-    fromKmh: Math.round(step * band),
-    toKmh: Math.round(step * (band + 1)),
+    fromKt: Math.round(step * band),
+    toKt: Math.round(step * (band + 1)),
   }));
 }
 

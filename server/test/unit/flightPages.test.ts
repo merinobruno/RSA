@@ -3,6 +3,7 @@ import { flightDetailPage, flightListPage } from "../../src/views/flightPages";
 import { SPEED_BAND_COUNT } from "../../src/services/trackBanding";
 import { SPEED_RAMP } from "../../src/views/theme";
 import type { FlightSummary, TrackPoint } from "../../src/db/flightRepository";
+import { toFeet, toKnots } from "../../src/services/units";
 
 const SECOND = 1000;
 const BASE = Date.parse("2026-09-07T22:16:00.000Z");
@@ -35,7 +36,7 @@ function summaryFor(points: TrackPoint[]): FlightSummary {
 /** The single JSON payload the detail page hands to its client script. */
 function payloadOf(html: string): {
   startedAt: number;
-  points: Array<[number, number, number, number, number]>;
+  points: Array<[number, number, number, number, number, number]>;
   bands: Array<{ band: number; color: string; ranges: Array<[number, number]> }>;
 } {
   const match = /var flight = (\{.*?\});/s.exec(html);
@@ -136,8 +137,8 @@ describe("flightDetailPage", () => {
     const legend = /<div class="legend"[\s\S]*?<\/div>\s*<\/div>/.exec(html);
 
     expect(legend).not.toBeNull();
-    expect(legend![0]).toContain(String(Math.round(flight.maxSpeedMps * 3.6)));
-    expect(legend![0]).toContain("km/h");
+    expect(legend![0]).toContain(String(Math.round(toKnots(flight.maxSpeedMps))));
+    expect(legend![0]).toContain("kt");
   });
 
   it("gives the legend a text description rather than colour alone", () => {
@@ -145,7 +146,7 @@ describe("flightDetailPage", () => {
 
     const html = flightDetailPage(summaryFor(points), points);
 
-    expect(html).toMatch(/aria-label="[^"]*km\/h[^"]*"/);
+    expect(html).toMatch(/aria-label="[^"]*kt[^"]*"/);
   });
 
   it("links back to the flight list with an affordance of its own", () => {
@@ -194,6 +195,78 @@ describe("flightDetailPage", () => {
     expect(payload.points).toHaveLength(1);
     expect(payload.bands).toEqual([]);
   });
+
+  it("states distance, speed and elevation in the units an aircraft is flown in", () => {
+    const points = track(60, () => 45);
+
+    const html = flightDetailPage(summaryFor(points), points);
+
+    expect(html).toContain("NM");
+    expect(html).toContain("87 kt");
+    expect(html).toContain("984");
+    // Not "km/h appears nowhere" - the GS tile keeps a metric second line, and that is the point.
+    // Exactly one occurrence: the primary reading of every quantity is aeronautical.
+    expect(html.match(/km\/h/g) ?? []).toHaveLength(1);
+  });
+
+  it("keeps the metric reading on the tiles that have one", () => {
+    // The same data also gets read from a car. Duración has no unit system, Puntos is a count and
+    // Precisión GPS is already metric, so only three tiles carry a second line.
+    const points = track(60, () => 45);
+
+    const html = flightDetailPage(summaryFor(points), points);
+    const metrics = html.match(/class="stat-metric"/g) ?? [];
+
+    expect(metrics).toHaveLength(3);
+    expect(html).toContain("162 km/h");
+  });
+
+  it("names the ground speed and the true track rather than airspeed and heading", () => {
+    // getSpeed is speed over the ground - there is no pitot tube - and getBearing is relative to
+    // true north, so a reader who takes it for a compass heading eats the declination as error.
+    const points = track(10);
+
+    const html = flightDetailPage(summaryFor(points), points);
+
+    expect(html).toContain(">GS<");
+    expect(html).toContain(">TRK<");
+    expect(html).not.toContain(">Rumbo<");
+    expect(html).not.toContain(">Velocidad<");
+  });
+
+  it("names the elevation for the datum it is actually measured against", () => {
+    // Not "altitud": it is neither above mean sea level nor pressure altitude, and calling it
+    // altitude is the first step toward believing it.
+    const points = track(10);
+
+    const html = flightDetailPage(summaryFor(points), points);
+
+    expect(html).toContain("ELEV GPS");
+    expect(html).toContain("WGS84");
+  });
+
+  it("carries an elevation in feet for every point so the readout can state one", () => {
+    const points = track(3);
+    points[1].altitudeM = 600;
+
+    const payload = payloadOf(flightDetailPage(summaryFor(points), points));
+
+    expect(payload.points.map((p) => p[5])).toEqual([
+      Math.round(toFeet(300)),
+      Math.round(toFeet(600)),
+      Math.round(toFeet(300)),
+    ]);
+  });
+
+  it("appends elevation rather than inserting it, so the older readings keep their slots", () => {
+    const points = track(3, (i) => 10 + i);
+
+    const payload = payloadOf(flightDetailPage(summaryFor(points), points));
+
+    expect(payload.points[0][2]).toBe(10);
+    expect(payload.points[0][4]).toBe(187);
+    expect(payload.points[0]).toHaveLength(6);
+  });
 });
 
 describe("flightListPage", () => {
@@ -209,5 +282,14 @@ describe("flightListPage", () => {
     const html = flightListPage([]);
 
     expect(html).toContain("Todavía no hay vuelos");
+  });
+
+  it("states each flight's top speed in knots", () => {
+    const points = track(5, () => 45);
+
+    const html = flightListPage([summaryFor(points)]);
+
+    expect(html).toContain("87 kt");
+    expect(html).not.toContain("km/h");
   });
 });

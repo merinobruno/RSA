@@ -86,6 +86,11 @@ const STYLES = `
     text-transform: uppercase;
     letter-spacing: .04em;
   }
+  /* The same quantity in the unit the operator reads on the ground. Only on the tiles: an
+     instrument that restates itself everywhere stops reading like an instrument. */
+  .stat-metric { font-size: 14px; font-weight: 400; color: var(--muted); }
+  /* The elevation tile, which is not as solid as the five beside it and should not look it. */
+  .stat-warn { color: var(--warnInk); }
   #map { height: 56vh; min-height: 320px; border-radius: 8px 8px 0 0; border: 1px solid var(--border); }
 
   /* The inspector sits under the map rather than floating over it: it never hides the track, it

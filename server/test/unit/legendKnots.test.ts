@@ -1,0 +1,22 @@
+import { describe, expect, it } from "vitest";
+import { SPEED_RAMP, bandSpeedBoundsKt } from "../../src/views/theme";
+import { toKnots } from "../../src/services/units";
+
+describe("bandSpeedBoundsKt", () => {
+  it("gives one bound per ramp step", () => {
+    expect(bandSpeedBoundsKt(40)).toHaveLength(SPEED_RAMP.length);
+  });
+
+  it("tops out at the flight's own fastest point", () => {
+    const bounds = bandSpeedBoundsKt(40);
+
+    expect(bounds[bounds.length - 1].toKt).toBe(Math.round(toKnots(40)));
+    expect(bounds[0].fromKt).toBe(0);
+  });
+
+  it("stays drawable for a flight that never moved", () => {
+    const bounds = bandSpeedBoundsKt(0);
+
+    expect(bounds.every((b) => b.fromKt === 0 && b.toKt === 0)).toBe(true);
+  });
+});

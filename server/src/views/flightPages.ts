@@ -1,8 +1,9 @@
 import { escapeHtml, page } from "./layout";
-import { SPEED_RAMP, bandColour, bandSpeedBoundsKmh } from "./theme";
+import { SPEED_RAMP, bandColour, bandSpeedBoundsKt } from "./theme";
 import type { FlightSummary, TrackPoint } from "../db/flightRepository";
 import { trackDistanceMetres } from "../services/flightSegmentation";
 import { SPEED_BAND_COUNT, bandTrack } from "../services/trackBanding";
+import { KNOTS_PER_MPS, formatKnots, formatNauticalMiles, toFeet } from "../services/units";
 
 /**
  * Every timestamp a human reads in this system is local; every timestamp stored or transmitted is
@@ -75,7 +76,7 @@ export function flightListPage(flights: FlightSummary[]): string {
           ${escapeHtml(localDateTime(f.startedAt))} a ${escapeHtml(localTime(f.endedAt))} GMT-3
           · ${escapeHtml(durationText(f.startedAt, f.endedAt))}
           · ${escapeHtml(f.packetCount.toLocaleString("es-AR"))} puntos
-          · máx ${escapeHtml((f.maxSpeedMps * 3.6).toFixed(0))} km/h
+          · máx ${escapeHtml(formatKnots(f.maxSpeedMps))}
         </div>
       </a>`
     )
@@ -92,8 +93,9 @@ export function flightListPage(flights: FlightSummary[]): string {
  * GPS has and more bytes than the page can afford. Times are seconds from the flight's first point
  * for the same reason: an ISO string per point is roughly as large as the coordinates it labels.
  *
- * Altitude is deliberately absent. The page says the recorded value is not trustworthy, so putting
- * it in a readout would hand it the authority the warning is there to withhold.
+ * Elevation is here now, in whole feet, appended rather than inserted: every consumer indexes this
+ * tuple positionally, so a new slot in the middle would break them without a word. The page states
+ * plainly what the value is worth, and the profile draws the evidence alongside it.
  */
 function flightPayload(points: TrackPoint[]): string {
   const startedAt = points.length > 0 ? points[0].capturedAt.getTime() : 0;
@@ -106,6 +108,7 @@ function flightPayload(points: TrackPoint[]): string {
       Number(p.speedMps.toFixed(1)),
       Math.round((p.capturedAt.getTime() - startedAt) / 1000),
       Math.round(p.headingDeg),
+      Math.round(toFeet(p.altitudeM)),
     ]),
     bands: bandTrack(
       points.map((p) => p.speedMps),
@@ -124,17 +127,20 @@ function flightPayload(points: TrackPoint[]): string {
 }
 
 export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): string {
-  const distanceKm = trackDistanceMetres(points) / 1000;
-  const maxSpeedKmh = flight.maxSpeedMps * 3.6;
+  const distanceM = trackDistanceMetres(points);
   const accuracies = points.map((p) => p.gpsAccuracyM);
   const medianAccuracy = accuracies.length
     ? [...accuracies].sort((a, b) => a - b)[Math.floor(accuracies.length / 2)]
     : 0;
+  const elevations = points.map((p) => p.altitudeM);
+  const maxElevM = elevations.length ? Math.max(...elevations) : 0;
+  const minElevM = elevations.length ? Math.min(...elevations) : 0;
 
   const stats = `
     <div class="stats">
       <div>
-        <div class="stat-value">${escapeHtml(distanceKm.toFixed(1))} km</div>
+        <div class="stat-value">${escapeHtml(formatNauticalMiles(distanceM))}
+          <span class="stat-metric">${escapeHtml((distanceM / 1000).toFixed(1))} km</span></div>
         <div class="stat-label">Distancia</div>
       </div>
       <div>
@@ -142,8 +148,11 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
         <div class="stat-label">Duración</div>
       </div>
       <div>
-        <div class="stat-value">${escapeHtml(maxSpeedKmh.toFixed(0))} km/h</div>
-        <div class="stat-label">Velocidad máxima</div>
+        <div class="stat-value">${escapeHtml(formatKnots(flight.maxSpeedMps))}
+          <span class="stat-metric">${escapeHtml(
+            (flight.maxSpeedMps * 3.6).toFixed(0)
+          )} km/h</span></div>
+        <div class="stat-label">GS máx</div>
       </div>
       <div>
         <div class="stat-value">${escapeHtml(points.length.toLocaleString("es-AR"))}</div>
@@ -152,6 +161,13 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
       <div>
         <div class="stat-value">±${escapeHtml(medianAccuracy.toFixed(0))} m</div>
         <div class="stat-label">Precisión GPS</div>
+      </div>
+      <div>
+        <div class="stat-value stat-warn">${escapeHtml(Math.round(toFeet(maxElevM)))} /
+          ${escapeHtml(Math.round(toFeet(minElevM)))} ft
+          <span class="stat-metric">${escapeHtml(maxElevM.toFixed(1))} /
+          ${escapeHtml(minElevM.toFixed(1))} m</span></div>
+        <div class="stat-label" title="Elevación GPS: altura sobre el elipsoide WGS84, no altitud.">ELEV GPS máx/mín</div>
       </div>
     </div>`;
 
@@ -165,21 +181,21 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
 
   // The ramp is relative to this flight's fastest point, so the key states this flight's numbers.
   // Three ticks rather than eight: the reader needs the scale, not a number per step.
-  const bounds = bandSpeedBoundsKmh(flight.maxSpeedMps);
-  const topKmh = bounds[bounds.length - 1].toKmh;
+  const bounds = bandSpeedBoundsKt(flight.maxSpeedMps);
+  const topKt = bounds[bounds.length - 1].toKt;
   const legend = `
     <div class="legend" aria-label="Escala de color de la traza, de ${escapeHtml(
-      bounds[0].fromKmh
-    )} a ${escapeHtml(topKmh)} km/h">
-      <span class="legend-title">Velocidad</span>
+      bounds[0].fromKt
+    )} a ${escapeHtml(topKt)} kt">
+      <span class="legend-title">GS</span>
       <div class="legend-scale">
         <div class="legend-steps" aria-hidden="true">${SPEED_RAMP.map(
           (step) => `<span class="legend-step" style="background: ${escapeHtml(step)}"></span>`
         ).join("")}</div>
         <div class="legend-ticks">
-          <span>${escapeHtml(bounds[0].fromKmh)}</span>
-          <span>${escapeHtml(Math.round(topKmh / 2))}</span>
-          <span>${escapeHtml(topKmh)} km/h</span>
+          <span>${escapeHtml(bounds[0].fromKt)}</span>
+          <span>${escapeHtml(Math.round(topKt / 2))}</span>
+          <span>${escapeHtml(topKt)} kt</span>
         </div>
       </div>
     </div>`;
@@ -193,17 +209,21 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
           <span class="readout-value" id="r-time">--:--:--</span>
         </div>
         <div class="readout-item">
-          <span class="readout-label">Velocidad</span>
+          <span class="readout-label">GS</span>
           <span class="readout-value" id="r-speed">--</span>
         </div>
         <div class="readout-item">
-          <span class="readout-label">Rumbo</span>
+          <span class="readout-label">TRK</span>
           <span class="readout-value" id="r-heading">--</span>
+        </div>
+        <div class="readout-item">
+          <span class="readout-label">ELEV GPS</span>
+          <span class="readout-value stat-warn" id="r-elev">--</span>
         </div>
       </div>
       <p class="readout-hint" id="readout-hint">
-        Mover la barra o pasar el cursor sobre la traza para ver hora, velocidad y rumbo de cada
-        punto.
+        Mover la barra o pasar el cursor sobre la traza para ver hora, velocidad respecto al suelo,
+        derrota verdadera y elevación de cada punto.
       </p>
       ${scrub}
     </div>`;
@@ -306,6 +326,7 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
       var timeCell = document.getElementById('r-time');
       var speedCell = document.getElementById('r-speed');
       var headingCell = document.getElementById('r-heading');
+      var elevCell = document.getElementById('r-elev');
       var cursor = L.circleMarker([0, 0], {
         radius: 6, color: '#ffffff', weight: 2, fillColor: '#0288d1', fillOpacity: 1
       });
@@ -323,8 +344,9 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
         var p = points[i];
         if (!p) return;
         timeCell.textContent = localClock(flight.startedAt + p[3] * 1000);
-        speedCell.textContent = (p[2] * 3.6).toFixed(0) + ' km/h';
+        speedCell.textContent = (p[2] * ${KNOTS_PER_MPS}).toFixed(0) + ' kt';
         headingCell.textContent = p[4] + '\\u00b0';
+        elevCell.textContent = p[5] + ' ft';
         readout.hidden = false;
         hint.hidden = true;
         cursor.setLatLng([p[0], p[1]]).addTo(map);
