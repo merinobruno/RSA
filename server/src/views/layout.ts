@@ -7,6 +7,8 @@
  * than on an assessment of who can currently write to them.
  */
 
+import { DARK, HEADER, LIGHT, cssVariables } from "./theme";
+
 export function escapeHtml(value: unknown): string {
   return String(value).replace(
     /[<>&'"]/g,
@@ -15,59 +17,126 @@ export function escapeHtml(value: unknown): string {
 }
 
 const STYLES = `
-  :root { color-scheme: light dark; }
+  :root {
+    color-scheme: light dark;
+    ${cssVariables(LIGHT)}
+    --header-bg: ${HEADER.bg};
+    --header-ink: ${HEADER.ink};
+    --header-link: ${HEADER.link};
+  }
+  /* Only the tokens change between themes. Every rule below reads them, so no colour is stated
+     twice and none can drift out of the contrast the palette was measured for. */
+  @media (prefers-color-scheme: dark) {
+    :root {
+    ${cssVariables(DARK)}
+    }
+  }
   * { box-sizing: border-box; }
+  /* The browser's own [hidden] rule is a user-agent style, so any author display declaration beats
+     it - and .readout sets display:flex. Without this, hiding the readout does nothing at all. */
+  [hidden] { display: none !important; }
   body {
     margin: 0;
     font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-    background: #fafafa;
-    color: #212121;
+    background: var(--bg);
+    color: var(--ink);
   }
   header {
-    background: #0d2a54;
-    color: #fff;
+    background: var(--header-bg);
+    color: var(--header-ink);
     padding: 16px 20px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
   }
   header h1 { margin: 0; font-size: 20px; }
-  header a { color: #9fc4ff; text-decoration: none; font-size: 14px; }
+  header h1 a { color: var(--header-ink); text-decoration: none; }
+  .back {
+    color: var(--header-link);
+    font-size: 14px;
+    text-decoration: none;
+    border-bottom: 1px solid currentColor;
+  }
+  .back:hover { color: var(--header-ink); }
   main { max-width: 960px; margin: 0 auto; padding: 20px; }
+  h2 { font-size: 22px; margin: 0 0 14px; }
+  a:focus-visible, input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
   .flight {
     display: block;
-    background: #fff;
-    border: 1px solid #e0e0e0;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 14px 16px;
     margin-bottom: 10px;
     text-decoration: none;
     color: inherit;
   }
-  .flight:hover { border-color: #0288d1; }
+  .flight:hover { border-color: var(--accent); }
   .flight-label { font-weight: 600; font-size: 17px; }
-  .flight-when { color: #616161; font-size: 14px; }
+  .flight-when { color: var(--muted); font-size: 14px; }
   .stats { display: flex; flex-wrap: wrap; gap: 20px; margin: 12px 0 18px; }
   .stat-value { font-size: 24px; font-weight: 600; }
-  .stat-label { font-size: 13px; color: #616161; text-transform: uppercase; letter-spacing: .04em; }
-  #map { height: 62vh; min-height: 340px; border-radius: 8px; border: 1px solid #e0e0e0; }
+  .stat-label {
+    font-size: 13px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  #map { height: 56vh; min-height: 320px; border-radius: 8px 8px 0 0; border: 1px solid var(--border); }
+
+  /* The inspector sits under the map rather than floating over it: it never hides the track, it
+     needs no stacking order against Leaflet's own panes, and on a narrow screen it has room to
+     state a full line instead of being squeezed into a corner. */
+  .inspector {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 0;
+    border-radius: 0 0 8px 8px;
+    padding: 12px 16px 14px;
+  }
+  .readout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 22px;
+    align-items: baseline;
+    min-height: 30px;
+  }
+  .readout-item { display: flex; align-items: baseline; gap: 6px; }
+  .readout-label {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .readout-value { font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .readout-hint { color: var(--muted); font-size: 14px; }
+  .scrub {
+    width: 100%;
+    margin: 10px 0 0;
+    accent-color: var(--accent);
+  }
   .warning {
-    background: #fff8e1;
-    border: 1px solid #f0d488;
+    background: var(--warnBg);
+    border: 1px solid var(--warnBorder);
     border-radius: 8px;
     padding: 12px 14px;
     margin: 18px 0;
     font-size: 14px;
-    color: #5d4409;
+    color: var(--warnInk);
   }
   .warning strong { display: block; margin-bottom: 4px; }
-  .empty { color: #616161; }
-  @media (prefers-color-scheme: dark) {
-    body { background: #121212; color: #e0e0e0; }
-    .flight { background: #1e1e1e; border-color: #333; }
-    .warning { background: #2b2418; border-color: #4a3c1a; color: #e8d9b0; }
-    #map { border-color: #333; }
-  }
+  .empty { color: var(--muted); }
 `;
 
-export function page(title: string, body: string, headExtra = ""): string {
+export function page(title: string, body: string, headExtra = "", backHref = ""): string {
+  const back = backHref
+    ? `<a class="back" href="${escapeHtml(backHref)}">&larr; Todos los vuelos</a>`
+    : "";
+
   return `<!doctype html>
 <html lang="es">
 <head>
@@ -82,7 +151,8 @@ ${headExtra}
 </head>
 <body>
 <header>
-  <h1><a href="/" style="color:#fff;text-decoration:none">RSA · seguimiento de vuelos</a></h1>
+  <h1><a href="/">RSA · seguimiento de vuelos</a></h1>
+  ${back}
 </header>
 <main>${body}</main>
 </body>

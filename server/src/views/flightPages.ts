@@ -1,6 +1,8 @@
 import { escapeHtml, page } from "./layout";
+import { FAST_HUE, SLOW_HUE } from "./theme";
 import type { FlightSummary, TrackPoint } from "../db/flightRepository";
 import { trackDistanceMetres } from "../services/flightSegmentation";
+import { SPEED_BAND_COUNT, bandTrack } from "../services/trackBanding";
 
 /**
  * Every timestamp a human reads in this system is local; every timestamp stored or transmitted is
@@ -11,6 +13,9 @@ import { trackDistanceMetres } from "../services/flightSegmentation";
  * same flight disagree about when it was.
  */
 const TZ = "America/Argentina/Buenos_Aires";
+
+/** The same offset, as minutes, for the client script - which formats without Intl. */
+const TZ_OFFSET_MINUTES = -180;
 
 /**
  * 24-hour, always.
@@ -79,6 +84,44 @@ export function flightListPage(flights: FlightSummary[]): string {
   return page("Vuelos", `<h2>Vuelos</h2>${items}`);
 }
 
+/**
+ * The single payload the client script reads: the track, and the bands to draw it in.
+ *
+ * Rounded and positional rather than named. The full track of a 1 Hz flight is tens of thousands of
+ * numbers, and six decimals of latitude is already about ten centimetres - more precision than the
+ * GPS has and more bytes than the page can afford. Times are seconds from the flight's first point
+ * for the same reason: an ISO string per point is roughly as large as the coordinates it labels.
+ *
+ * Altitude is deliberately absent. The page says the recorded value is not trustworthy, so putting
+ * it in a readout would hand it the authority the warning is there to withhold.
+ */
+function flightPayload(points: TrackPoint[]): string {
+  const startedAt = points.length > 0 ? points[0].capturedAt.getTime() : 0;
+
+  const payload = {
+    startedAt,
+    points: points.map((p) => [
+      Number(p.lat.toFixed(6)),
+      Number(p.lon.toFixed(6)),
+      Number(p.speedMps.toFixed(1)),
+      Math.round((p.capturedAt.getTime() - startedAt) / 1000),
+      Math.round(p.headingDeg),
+    ]),
+    bands: bandTrack(
+      points.map((p) => p.speedMps),
+      SPEED_BAND_COUNT
+    ).map((b) => ({
+      band: b.band,
+      hue: Math.round(SLOW_HUE + ((FAST_HUE - SLOW_HUE) * b.band) / (SPEED_BAND_COUNT - 1)),
+      ranges: b.ranges,
+    })),
+  };
+
+  // The payload is numbers only, so it cannot currently contain a closing tag - escaped anyway so
+  // that adding a string field later cannot quietly end the script element.
+  return JSON.stringify(payload).replace(/</g, "\\u003c");
+}
+
 export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): string {
   const distanceKm = trackDistanceMetres(points) / 1000;
   const maxSpeedKmh = flight.maxSpeedMps * 3.6;
@@ -111,11 +154,36 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
       </div>
     </div>`;
 
-  // Only the fields the map needs, and rounded: the full track at 1 Hz is a lot of JSON, and six
-  // decimals of latitude is already about 10 cm.
-  const trackJson = JSON.stringify(
-    points.map((p) => [Number(p.lat.toFixed(6)), Number(p.lon.toFixed(6)), Number(p.speedMps.toFixed(1))])
-  );
+  // A slider as well as the pointer: hovering a line is unusable on a phone and unreachable from a
+  // keyboard, and scrubbing a track second by second is how a flight actually gets reviewed.
+  const scrub =
+    points.length > 1
+      ? `<input class="scrub" id="scrub" type="range" min="0" max="${points.length - 1}"
+                value="0" step="1" aria-label="Punto del vuelo">`
+      : "";
+
+  const inspector = `
+    <div class="inspector">
+      <div class="readout" id="readout" hidden>
+        <div class="readout-item">
+          <span class="readout-label">Hora</span>
+          <span class="readout-value" id="r-time">--:--:--</span>
+        </div>
+        <div class="readout-item">
+          <span class="readout-label">Velocidad</span>
+          <span class="readout-value" id="r-speed">--</span>
+        </div>
+        <div class="readout-item">
+          <span class="readout-label">Rumbo</span>
+          <span class="readout-value" id="r-heading">--</span>
+        </div>
+      </div>
+      <p class="readout-hint" id="readout-hint">
+        Mover la barra o pasar el cursor sobre la traza para ver hora, velocidad y rumbo de cada
+        punto.
+      </p>
+      ${scrub}
+    </div>`;
 
   const head = `
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -130,6 +198,7 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
     </p>
     ${stats}
     <div id="map"></div>
+    ${inspector}
     <div class="warning">
       <strong>La altitud de este vuelo no es confiable.</strong>
       El valor que registra el sistema viene en escalones de 10 cm, resultó idéntico bit a bit entre
@@ -139,40 +208,138 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
       grafica.
     </div>
     <script>
-      var track = ${trackJson};
-      var map = L.map('map');
+      var flight = ${flightPayload(points)};
+      var points = flight.points;
+      var latlngs = points.map(function (p) { return [p[0], p[1]]; });
+
+      // Canvas, not SVG: at 1 Hz a long flight is tens of thousands of vertices, and the SVG
+      // renderer puts every one of them in the DOM.
+      var map = L.map('map', { preferCanvas: true });
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '&copy; colaboradores de OpenStreetMap'
       }).addTo(map);
 
-      if (track.length > 0) {
-        var latlngs = track.map(function (p) { return [p[0], p[1]]; });
+      // One layer per speed band, each holding every run of track that falls in it. The map used
+      // to add one layer per pair of points, which does not survive a flight of this length.
+      flight.bands.forEach(function (band) {
+        L.polyline(
+          band.ranges.map(function (r) { return latlngs.slice(r[0], r[1] + 1); }),
+          { color: 'hsl(' + band.hue + ', 85%, 45%)', weight: 4, opacity: 0.9 }
+        ).addTo(map);
+      });
 
-        // Coloured by speed: one polyline per segment, so a fast leg reads differently from a slow
-        // one without needing a legend to explain the picture.
-        var speeds = track.map(function (p) { return p[2]; });
-        var maxSpeed = Math.max.apply(null, speeds) || 1;
-        for (var i = 1; i < latlngs.length; i++) {
-          var ratio = Math.min(speeds[i] / maxSpeed, 1);
-          var hue = 210 - ratio * 210; // azul quieto -> rojo rápido
-          L.polyline([latlngs[i - 1], latlngs[i]], {
-            color: 'hsl(' + hue + ', 85%, 45%)',
-            weight: 4,
-            opacity: 0.9
-          }).addTo(map);
-        }
-
+      if (latlngs.length > 0) {
         L.circleMarker(latlngs[0], { radius: 7, color: '#00c853', fillOpacity: 1 })
           .addTo(map).bindPopup('Inicio');
         L.circleMarker(latlngs[latlngs.length - 1], { radius: 7, color: '#d50000', fillOpacity: 1 })
           .addTo(map).bindPopup('Fin');
+      }
 
-        map.fitBounds(L.latLngBounds(latlngs), { padding: [24, 24] });
-      } else {
-        map.setView([-38.93, -67.97], 11);
+      /*
+       * Leaflet measures its container once and caches the result. A map built while that container
+       * has no laid-out width - a background tab, a pane the host sizes after load, an iframe that
+       * gets its dimensions late - caches zero, and every zoom it computes from then on comes out
+       * at the maximum: the page shows an empty grey square over the middle of nowhere and never
+       * recovers on its own. So fit only from a size that was really measured, and if there was
+       * none yet, wait for one.
+       */
+      var fitted = false;
+
+      // A provisional view straight away. Without one the map is not merely badly framed, it has no
+      // view at all, and every Leaflet call that needs a centre throws - so refusing to fit from a
+      // bogus size must not be the only thing that happens here.
+      map.setView(latlngs.length > 0 ? latlngs[0] : [-38.93, -67.97], 11);
+
+      function fitTrack() {
+        map.invalidateSize();
+        var size = map.getSize();
+        if (size.x === 0 || size.y === 0) return;
+
+        if (latlngs.length > 0) map.fitBounds(L.latLngBounds(latlngs), { padding: [24, 24] });
+        else map.setView([-38.93, -67.97], 11);
+        fitted = true;
+      }
+
+      fitTrack();
+
+      if (!fitted && typeof ResizeObserver === 'function') {
+        // Disconnected as soon as one fit lands, so a later resize - or the reader's own panning -
+        // is never overridden.
+        var observer = new ResizeObserver(function () {
+          fitTrack();
+          if (fitted) observer.disconnect();
+        });
+        observer.observe(document.getElementById('map'));
+      } else if (!fitted) {
+        window.addEventListener('load', fitTrack);
+      }
+
+      window.addEventListener('resize', function () { map.invalidateSize(); });
+
+      var readout = document.getElementById('readout');
+      var hint = document.getElementById('readout-hint');
+      var scrub = document.getElementById('scrub');
+      var timeCell = document.getElementById('r-time');
+      var speedCell = document.getElementById('r-speed');
+      var headingCell = document.getElementById('r-heading');
+      var cursor = L.circleMarker([0, 0], {
+        radius: 6, color: '#ffffff', weight: 2, fillColor: '#0288d1', fillOpacity: 1
+      });
+
+      function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+      // The server stores UTC and states GMT-3, and Argentina keeps no daylight saving, so a fixed
+      // shift is the entire conversion - no Intl, no time zone database on a cheap phone.
+      function localClock(millis) {
+        var d = new Date(millis + ${TZ_OFFSET_MINUTES} * 60000);
+        return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds());
+      }
+
+      function show(i) {
+        var p = points[i];
+        if (!p) return;
+        timeCell.textContent = localClock(flight.startedAt + p[3] * 1000);
+        speedCell.textContent = (p[2] * 3.6).toFixed(0) + ' km/h';
+        headingCell.textContent = p[4] + '\\u00b0';
+        readout.hidden = false;
+        hint.hidden = true;
+        cursor.setLatLng([p[0], p[1]]).addTo(map);
+        if (scrub && scrub.value !== String(i)) scrub.value = i;
+      }
+
+      // Longitude degrees are shorter than latitude degrees away from the equator, so comparing
+      // raw degrees would bias every match along one axis. One cosine for the whole track is
+      // plenty over the distance a flight from here covers.
+      var cosLat = latlngs.length ? Math.cos(latlngs[0][0] * Math.PI / 180) : 1;
+
+      function nearestIndex(latlng) {
+        var best = -1;
+        var bestDistance = Infinity;
+        for (var i = 0; i < points.length; i++) {
+          var dy = points[i][0] - latlng.lat;
+          var dx = (points[i][1] - latlng.lng) * cosLat;
+          var distance = dy * dy + dx * dx;
+          if (distance < bestDistance) { bestDistance = distance; best = i; }
+        }
+        // Scaled to the current view, so the pointer has to be near the line at any zoom rather
+        // than within some fixed number of degrees.
+        var bounds = map.getBounds();
+        var tolerance = (bounds.getNorth() - bounds.getSouth()) * 0.04;
+        return bestDistance <= tolerance * tolerance ? best : -1;
+      }
+
+      function inspectAt(e) {
+        var i = nearestIndex(e.latlng);
+        if (i >= 0) show(i);
+      }
+
+      map.on('mousemove', inspectAt);
+      map.on('click', inspectAt);
+      if (scrub) {
+        scrub.addEventListener('input', function () { show(Number(scrub.value)); });
       }
     </script>`;
 
-  return page(`${flight.deviceLabel} · vuelo`, body, head);
+  return page(`${flight.deviceLabel} · vuelo`, body, head, "/");
 }

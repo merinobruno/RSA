@@ -1,9 +1,15 @@
 import express, { type ErrorRequestHandler } from "express";
+import compression from "compression";
 import { telemetryRouter } from "./routes/telemetry";
 import { dashboardRouter } from "./routes/dashboard";
 
 export function createApp() {
   const app = express();
+
+  // First, so it covers every response below it. The dashboard inlines a whole flight track in the
+  // page - hundreds of kilobytes of coordinates at 1 Hz - and coordinates from one flight share
+  // almost all of their leading digits, which is close to the best case for gzip.
+  app.use(compression());
 
   app.use(express.json({ limit: "5mb" }));
 

@@ -175,6 +175,20 @@ describe.skipIf(!DATABASE_URL)("flight dashboard (integration)", () => {
     });
   });
 
+  it("sends the flight page compressed", async () => {
+    // The track is inlined in the page, and at 1 Hz a real flight is a few hundred kilobytes of
+    // coordinates. Over mobile data that is the difference between a page that opens and one that
+    // does not, so this is part of the contract rather than a deployment detail.
+    const list = await request(app).get("/api/flights");
+    const flight = ourFlights(list.body)[0] as never & { started_at: string };
+
+    const res = await request(app)
+      .get(`/flights/${deviceId}/${Date.parse(flight.started_at)}`)
+      .set("Accept-Encoding", "gzip");
+
+    expect(res.headers["content-encoding"]).toBe("gzip");
+  });
+
   it("asks search engines to stay away", async () => {
     const res = await request(app).get("/robots.txt");
 
