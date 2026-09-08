@@ -12,6 +12,7 @@
 
 - **Spec:** `docs/superpowers/specs/2026-09-08-aeronautical-dashboard-design.md`. Read it before Task 1.
 - **All commands run from `server/`.** The repo root is `P:\dev\RSA`; the Node project is `P:\dev\RSA\server`.
+- **Vitest's `globalSetup` connects to Postgres on every run**, including a unit-only one, so a bare `npx vitest run test/unit` fails with `ECONNREFUSED :5432` unless a database happens to be up. Wrap it: `node scripts/with-postgres.mjs npx vitest run test/unit`, which provisions one and tears it down — the same thing `npm test` does for the whole suite. Every `npx vitest run …` command below is shorthand for the wrapped form.
 - **UI copy is Spanish**, matching `<html lang="es">`. Code, identifiers, comments and commit messages are English. Do not translate existing Spanish strings.
 - **Everything interpolated into HTML goes through `escapeHtml`, without exception** — the house rule in `src/views/layout.ts:5-7`, applied even to values that are provably numbers (see the precedent at `src/views/flightPages.ts:121-122`).
 - **Colours are never stated twice.** Every colour is a `Palette` token in `src/views/theme.ts`; CSS rules read `var(--token)`. Adding a token to the `Palette` interface makes `cssVariables` emit it for both themes automatically.
