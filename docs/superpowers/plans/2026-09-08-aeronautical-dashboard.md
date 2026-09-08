@@ -1131,6 +1131,28 @@ Add these tests to `describe("flightDetailPage", ...)` in `server/test/unit/flig
     expect(Math.max(...labels) - Math.min(...labels)).toBe(100);
   });
 
+  it("keeps every envelope rect inside the frame, including the lowest column", () => {
+    // A flat column at the flight's lowest recorded value lands on the viewBox floor exactly, and
+    // the minimum height that keeps a flat column visible would push it past the edge, where the
+    // SVG clips it away. Those lowest columns are the stationary ground stretches this chart
+    // exists to show, so losing them silently loses the point of the feature.
+    const points = track(600);
+    points.forEach((p, i) => {
+      p.altitudeM = 300 + i;
+    });
+
+    const html = flightDetailPage(summaryFor(points), points);
+    const rects = [
+      ...html.matchAll(/class="profile-envelope" x="\d+" y="([\d.]+)" width="1" height="([\d.]+)"/g),
+    ];
+
+    expect(rects.length).toBeGreaterThan(0);
+    for (const [, y, height] of rects) {
+      expect(Number(y)).toBeGreaterThanOrEqual(0);
+      expect(Number(y) + Number(height)).toBeLessThanOrEqual(120);
+    }
+  });
+
   it("omits the profile for a flight that has no shape to draw", () => {
     const points = track(1);
 
@@ -1216,8 +1238,13 @@ In `flightDetailPage`, insert this immediately before the `const head = ...` dec
   const envelope = columns
     .filter((c) => c.sampleCount > 0)
     .map((c) => {
-      const top = yOf(c.maxFt);
-      const height = Math.max(yOf(c.minFt) - top, 1.5);
+      const height = Math.max(yOf(c.minFt) - yOf(c.maxFt), 1.5);
+      // The floor has to grow upward once a column reaches the bottom of the frame. A flat column
+      // at the flight's lowest recorded value lands on y = PROFILE_HEIGHT exactly, and giving it
+      // height from there puts it past the viewBox, where the SVG clips it away entirely - and the
+      // columns sitting at that lowest value are the stationary ground stretches this whole chart
+      // exists to make visible.
+      const top = Math.min(yOf(c.maxFt), PROFILE_HEIGHT - height);
       return `<rect class="profile-envelope" x="${escapeHtml(c.x)}" y="${escapeHtml(
         top.toFixed(2)
       )}" width="1" height="${escapeHtml(height.toFixed(2))}"/>`;
@@ -1292,7 +1319,9 @@ In the inline script, add after `var elevCell = document.getElementById('r-elev'
 
 ```js
       var profileCursor = document.getElementById('profile-cursor');
-      var profileColumns = ${columns.length};
+      // Not "profileColumns": that is the name of the server-side function that produced this
+      // number, and the two live in different scopes only by accident of where they are written.
+      var profileColumnCount = ${columns.length};
       var profileSeconds = points.length > 1 ? points[points.length - 1][3] : 0;
 ```
 
@@ -1302,7 +1331,7 @@ Add inside `show(i)`, immediately before `if (scrub && scrub.value !== String(i)
         if (profileCursor && profileSeconds > 0) {
           // The cursor is placed in viewBox units, which are columns - so the same number of
           // seconds always lands on the same column whatever width the card ends up.
-          var profileX = (p[3] / profileSeconds) * profileColumns;
+          var profileX = (p[3] / profileSeconds) * profileColumnCount;
           profileCursor.setAttribute('x1', profileX);
           profileCursor.setAttribute('x2', profileX);
           // removeAttribute, not .hidden: hidden is an HTMLElement property, and an SVG element
