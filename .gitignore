@@ -21,3 +21,10 @@ Desktop.ini
 .env
 .env.*
 !.env.example
+
+# Impeccable working files: rendered snapshots, comps and build state, all regenerated per
+# session. The durable design artifacts (.impeccable/surfaces/, and DESIGN.md at the root) are
+# tracked, because they are the record later sessions reload.
+.impeccable/review/
+.impeccable/build/
+.impeccable/mocks/

@@ -1,0 +1,303 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-09T00:00:00.000Z",
+  "title": "Design System: RSA — Seguimiento de vuelos",
+  "extensions": {
+    "colorMeta": {
+      "header-navy": {
+        "role": "primary",
+        "displayName": "Identity Navy",
+        "canonical": "#0d2a54",
+        "note": "Fixed in both themes; defined outside both palettes because it is identity, not a surface.",
+        "tonalRamp": ["#04101f", "#071b33", "#0d2a54", "#164079", "#2159a1", "#3f7cc4", "#7aa8dd", "#c4d9f2"]
+      },
+      "live": {
+        "role": "primary",
+        "displayName": "Airborne Green",
+        "canonical": "#0f7a3d",
+        "dark": "#4ade80",
+        "note": "The only saturated colour on the index. Clears 4.5:1 on page and card in both themes because it carries words.",
+        "tonalRamp": ["#03260f", "#06421d", "#0a5c2b", "#0f7a3d", "#199c52", "#2fbd6c", "#4ade80", "#b8f2cd"]
+      },
+      "accent": {
+        "role": "secondary",
+        "displayName": "Instrument Cyan",
+        "canonical": "#0288d1",
+        "dark": "#4fc3f7",
+        "note": "Non-text emphasis only: focus rings, hovered borders, selection, scrub accent. Held to the 3:1 UI floor; never text, never state.",
+        "tonalRamp": ["#00293f", "#013f60", "#015a86", "#0275b3", "#0288d1", "#29a7e8", "#4fc3f7", "#bde8fd"]
+      },
+      "link": {
+        "role": "secondary",
+        "displayName": "Chart Link Blue",
+        "canonical": "#01579b",
+        "dark": "#7fd4ff",
+        "note": "Link text; measured against the text bar, not the UI bar.",
+        "tonalRamp": ["#00172b", "#012a4c", "#013f72", "#01579b", "#0d76c9", "#3f9de4", "#7fd4ff", "#d4eeff"]
+      },
+      "warnInk": {
+        "role": "tertiary",
+        "displayName": "Caution Amber Ink",
+        "canonical": "#5d4409",
+        "dark": "#e8d9b0",
+        "note": "The untrustworthy-altitude family. Also the silent-device and pending-flight state colour. Measured on amber panel, page, and card.",
+        "tonalRamp": ["#241a03", "#3d2c05", "#5d4409", "#7e5d10", "#a37c1e", "#c9a44f", "#e8d9b0", "#f7efd9"]
+      },
+      "warnBg": {
+        "role": "tertiary",
+        "displayName": "Caution Panel",
+        "canonical": "#fff8e1",
+        "dark": "#2b2418"
+      },
+      "warnBorder": {
+        "role": "tertiary",
+        "displayName": "Caution Edge",
+        "canonical": "#f0d488",
+        "dark": "#4a3c1a"
+      },
+      "profileInk": {
+        "role": "tertiary",
+        "displayName": "Profile Graphite",
+        "canonical": "#37474f",
+        "dark": "#b0bec5",
+        "note": "The elevation trace. Non-text: a shape, not a label, so held to 3:1 against the card.",
+        "tonalRamp": ["#101619", "#1e282d", "#2b3940", "#37474f", "#546b76", "#7b929c", "#b0bec5", "#dde4e7"]
+      },
+      "profileFrozen": {
+        "role": "tertiary",
+        "displayName": "Frozen Ochre",
+        "canonical": "#b26a00",
+        "dark": "#c98f2e",
+        "note": "Shading over columns that repeated the previous sample. Measured composited at 0.55 over the card, never as declared.",
+        "tonalRamp": ["#301c00", "#4d2d00", "#6d4000", "#8d5300", "#b26a00", "#c98f2e", "#e0b467", "#f4dfb8"]
+      },
+      "bg": {
+        "role": "neutral",
+        "displayName": "Page Paper",
+        "canonical": "#fafafa",
+        "dark": "#121212",
+        "note": "Also the sticky column header's own opaque ground."
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Card White",
+        "canonical": "#ffffff",
+        "dark": "#1e1e1e",
+        "note": "Map card, profile, inspector, and the hover ground for ledger rows."
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#e0e0e0",
+        "dark": "#333333"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#212121",
+        "dark": "#e0e0e0"
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "canonical": "#616161",
+        "dark": "#9e9e9e",
+        "note": "The dark theme does not reuse #616161: it measures 3.0:1 on the dark page and 2.7:1 on a card, which is where every flight's date, duration, point count and top speed is rendered."
+      },
+      "header-ink": { "role": "neutral", "displayName": "Band Ink", "canonical": "#ffffff" },
+      "header-link": { "role": "neutral", "displayName": "Band Link", "canonical": "#9fc4ff" }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Headline", "purpose": "The flight page's aircraft title (h2, 22px)." },
+      "title": { "displayName": "Title", "purpose": "Header wordmark on the navy band (20px)." },
+      "subtitle": { "displayName": "Subtitle", "purpose": "Open entry's aircraft name and the hover readout's values (19px/600)." },
+      "figure": { "displayName": "Figure", "purpose": "Flight-page stat tiles. The only place a large numeral is allowed (24px/600)." },
+      "ledger": { "displayName": "Ledger", "purpose": "The row's local time: the gutter that anchors each entry (15px/600 tabular)." },
+      "numeral": { "displayName": "Numeral", "purpose": "Every ledger figure (14px tabular); 16px/600 in the open entry's figures." },
+      "body": { "displayName": "Body", "purpose": "Running prose (16px/1.5 system stack)." },
+      "secondary": { "displayName": "Secondary", "purpose": "Signal ages, fleet signal, footnotes (13px muted)." },
+      "label": { "displayName": "Label", "purpose": "Date headings, status words, stat and readout labels (12px/600 uppercase)." },
+      "label-micro": { "displayName": "Label Micro", "purpose": "Sticky ledger column header and the fleet section label (11px/600, .09em)." }
+    },
+    "shadows": [
+      {
+        "name": "silent-dot-ring",
+        "value": "inset 0 0 0 1.5px var(--warnInk)",
+        "purpose": "The only box-shadow in the system. Hollows the silent device's status light so a quiet phone reads as a thing to look at, not an alarm. It draws a shape, not a depth; the system has no elevation ramp."
+      }
+    ],
+    "motion": [
+      {
+        "name": "live-ping",
+        "value": "@keyframes live-ping { 0% { transform: scale(1); opacity: .5 } 70% { transform: scale(3.4); opacity: 0 } 100% { transform: scale(3.4); opacity: 0 } } — 2.6s cubic-bezier(.16, 1, .3, 1) infinite",
+        "purpose": "The one authored animation. A ring leaving the live dot on a pseudo-element; transform and opacity only, so the compositor handles it. The dot itself never animates."
+      },
+      {
+        "name": "caret-turn",
+        "value": "transform .18s cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "The fleet disclosure caret turning from 45deg to -135deg with the details element."
+      },
+      {
+        "name": "reduced-motion-guard",
+        "value": "@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important } }",
+        "purpose": "Non-negotiable clamp on every animation and transition."
+      }
+    ],
+    "breakpoints": [
+      { "name": "ledger-narrow", "value": "620px" },
+      { "name": "content-max", "value": "960px" },
+      { "name": "fleet-track-min", "value": "260px" }
+    ],
+    "speedRamp": {
+      "purpose": "Eight speed bands, slowest first, relative to the fastest point of the flight being viewed. Read by both the legend and the polyline on the map so the two cannot describe different things.",
+      "shipped": ["#1173d4", "#11d4d4", "#11d473", "#11d411", "#73d411", "#d4d411", "#d47311", "#d41111"],
+      "recordedCaveat": "The shipped ramp is a hue ramp and fails as a magnitude ramp on four measured counts: lightness is not monotone; slowest and fastest land at 0.558 vs 0.551 (indistinguishable in greyscale or with severe colour blindness); four middle steps sit within 0.025; the yellow step is 1.55:1 against a pale map tile. A single-hue alternative measured clean on all four and is recorded in theme.ts: #d1a5db #bf90ca #ae7aba #9d65a9 #8c5099 #7b3a89 #6a2379 #590369. Swapping the two lists is the whole change.",
+      "measuredAlternative": ["#d1a5db", "#bf90ca", "#ae7aba", "#9d65a9", "#8c5099", "#7b3a89", "#6a2379", "#590369"]
+    },
+    "opacity": [
+      {
+        "name": "max-frozen-opacity",
+        "value": "0.55",
+        "purpose": "The strongest the elevation profile ever paints a frozen column. Declared in theme.ts rather than the view because the palette's contrast guard composites at exactly the value that ships; past 0.59 the dark theme's trace-on-shading drops below 3:1."
+      }
+    ],
+    "contrastFloors": [
+      { "name": "text", "value": "4.5", "purpose": "WCAG AA normal-size text. Every timestamp and stat label is 13-14px." },
+      { "name": "ui", "value": "3", "purpose": "WCAG AA non-text UI: borders, focus rings, markers, the profile trace." },
+      { "name": "tint", "value": "1.5", "purpose": "Perceptible-as-a-tint floor, not a WCAG threshold: the spec sets none for a shaded region, because a tint is not a shape whose form has to be read." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Ledger Row",
+      "kind": "custom",
+      "refersTo": "ledger-row",
+      "description": "One flight as a line in a book: time gutter, track glyph, aircraft name, four right-aligned tabular figures. Separated from its sibling by a hairline, never boxed.",
+      "html": "<ol class=\"ds-rows\"><li class=\"ds-row\"><a class=\"ds-entry\" href=\"#\"><time class=\"ds-cell ds-cell--time\">14:32</time><span class=\"ds-cell ds-cell--glyph\"><svg class=\"ds-glyph\" viewBox=\"-0.08 -0.08 1.16 1.16\" preserveAspectRatio=\"xMidYMid meet\"><polyline class=\"ds-glyph-line\" points=\"0,0.72 0.18,0.34 0.46,0.5 0.7,0.12 1,0.44\" vector-effect=\"non-scaling-stroke\"/><circle class=\"ds-glyph-start\" cx=\"0\" cy=\"0.72\" r=\"0.08\"/></svg></span><span class=\"ds-cell ds-cell--craft\">LV-XKM · Cessna 150</span><span class=\"ds-cell-nums\"><span class=\"ds-cell ds-cell--num\">1:04</span><span class=\"ds-cell ds-cell--num\">62.4</span><span class=\"ds-cell ds-cell--num\">98</span><span class=\"ds-cell ds-cell--num ds-cell--faint\">3.812</span></span></a></li><li class=\"ds-row\"><a class=\"ds-entry\" href=\"#\"><time class=\"ds-cell ds-cell--time\">11:08</time><span class=\"ds-cell ds-cell--glyph\"><svg class=\"ds-glyph\" viewBox=\"-0.08 -0.08 1.16 1.16\" preserveAspectRatio=\"xMidYMid meet\"><polyline class=\"ds-glyph-line\" points=\"0.1,0.2 0.5,0.1 0.86,0.46 0.5,0.88 0.12,0.6\" vector-effect=\"non-scaling-stroke\"/><circle class=\"ds-glyph-start\" cx=\"0.1\" cy=\"0.2\" r=\"0.08\"/></svg></span><span class=\"ds-cell ds-cell--craft\">LV-BQP · Ultraliviano</span><span class=\"ds-cell-nums\"><span class=\"ds-cell ds-cell--num\">0:41</span><span class=\"ds-cell ds-cell--num\">28.9</span><span class=\"ds-cell ds-cell--num\">74</span><span class=\"ds-cell ds-cell--num ds-cell--faint\">2.104</span></span></a></li></ol>",
+      "css": ".ds-rows { list-style: none; margin: 0; padding: 0; font: 16px/1.5 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: var(--ink, #212121); --ds-nums: 3.2rem 3.4rem 3.6rem 4.4rem; } .ds-row + .ds-row { border-top: 1px solid var(--border, #e0e0e0); } .ds-entry { display: grid; grid-template-columns: 3.6rem 30px minmax(0, 1fr) auto; gap: 0 16px; align-items: center; padding: 10px 8px; border-radius: 5px; text-decoration: none; color: inherit; } .ds-entry:hover { background: var(--surface, #ffffff); } .ds-entry:hover .ds-cell--craft { text-decoration: underline; text-underline-offset: 3px; } .ds-entry:focus-visible { outline: 2px solid var(--accent, #0288d1); outline-offset: 2px; } .ds-cell { min-width: 0; } .ds-cell--time { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; } .ds-cell--craft { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-cell-nums { display: grid; grid-template-columns: var(--ds-nums); gap: 0 16px; align-items: baseline; } .ds-cell--num { text-align: right; font-size: 14px; font-variant-numeric: tabular-nums; } .ds-cell--faint { color: var(--muted, #616161); } .ds-cell--glyph { display: flex; } .ds-glyph { display: block; flex: none; width: 30px; height: 30px; } .ds-glyph-line { fill: none; stroke: var(--profileInk, #37474f); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; } .ds-glyph-start { fill: var(--ink, #212121); }"
+    },
+    {
+      "name": "Ledger Column Header",
+      "kind": "nav",
+      "refersTo": "column-header",
+      "description": "The ledger's only key, sticky at the top of the scroll with its own opaque page-coloured ground. It names the units so the rows can carry bare numerals; hidden below 620px.",
+      "html": "<div class=\"ds-rows-head\"><span></span><span></span><span></span><span class=\"ds-head-nums\"><span class=\"ds-head-num\">Dur.</span><span class=\"ds-head-num\">NM</span><span class=\"ds-head-num\">GS máx</span><span class=\"ds-head-num\">Puntos</span></span></div>",
+      "css": ".ds-rows-head { display: grid; grid-template-columns: 3.6rem 30px minmax(0, 1fr) auto; gap: 0 16px; align-items: center; position: sticky; top: 0; z-index: 1; background: var(--bg, #fafafa); padding: 9px 8px 7px; font: 600 11px/1.5 system-ui, -apple-system, \"Segoe UI\", sans-serif; letter-spacing: .07em; text-transform: uppercase; color: var(--muted, #616161); border-bottom: 1px solid var(--border, #e0e0e0); } .ds-head-nums { display: grid; grid-template-columns: 3.2rem 3.4rem 3.6rem 4.4rem; gap: 0 16px; } .ds-head-num { text-align: right; }"
+    },
+    {
+      "name": "Open Entry (live)",
+      "kind": "card",
+      "refersTo": "open-entry-live",
+      "description": "The flight still sending packets, as the logbook's open line: same grammar as the rows, one step larger, a 2px green top rule and deliberately no closing rule beneath it.",
+      "html": "<section class=\"ds-open ds-open--live\"><a class=\"ds-open-entry\" href=\"#\"><div class=\"ds-open-status\"><span class=\"ds-open-live\"><span class=\"ds-open-pulse\"></span>En curso</span><span class=\"ds-open-age\">último paquete hace 40 s</span></div><span class=\"ds-open-glyph\"><svg class=\"ds-glyph ds-glyph--lg\" viewBox=\"-0.08 -0.08 1.16 1.16\" preserveAspectRatio=\"xMidYMid meet\"><polyline class=\"ds-glyph-line\" points=\"0,0.72 0.18,0.34 0.46,0.5 0.7,0.12 1,0.44\" vector-effect=\"non-scaling-stroke\"/><circle class=\"ds-glyph-start\" cx=\"0\" cy=\"0.72\" r=\"0.07\"/></svg></span><div class=\"ds-open-body\"><span class=\"ds-open-craft\">LV-XKM · Cessna 150</span><span class=\"ds-open-when\">hoy 15:12</span></div><span class=\"ds-open-figures\"><span class=\"ds-cell--num\">0:22</span><span class=\"ds-cell--num\">18.3</span><span class=\"ds-cell--num\">91</span><span class=\"ds-cell--num ds-cell--faint\">1.284</span></span></a></section>",
+      "css": ".ds-open { margin: 0 0 4px; font: 16px/1.5 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: var(--ink, #212121); } .ds-open-entry { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px 20px; align-items: center; padding: 15px 8px 17px; border-top: 1px solid var(--border, #e0e0e0); border-bottom: 1px solid var(--border, #e0e0e0); text-decoration: none; color: inherit; } .ds-open--live .ds-open-entry { border-top: 2px solid var(--live, #0f7a3d); border-bottom: 0; } .ds-open-entry:hover { background: var(--surface, #ffffff); } .ds-open-entry:hover .ds-open-craft { text-decoration: underline; text-underline-offset: 3px; } .ds-open-entry:focus-visible { outline: 2px solid var(--accent, #0288d1); outline-offset: 2px; } .ds-open-status { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; } .ds-open-live { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--live, #0f7a3d); } .ds-open-age { color: var(--muted, #616161); font-size: 13px; font-variant-numeric: tabular-nums; } .ds-open-craft { display: block; font-size: 19px; font-weight: 600; } .ds-open-when { display: block; color: var(--muted, #616161); font-size: 14px; } .ds-open-figures { display: grid; grid-template-columns: 3.2rem 3.4rem 3.6rem 4.4rem; gap: 0 16px; } .ds-open-figures .ds-cell--num { text-align: right; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; } .ds-cell--faint { color: var(--muted, #616161); } .ds-glyph { display: block; flex: none; width: 30px; height: 30px; } .ds-glyph--lg { width: 62px; height: 62px; } .ds-glyph-line { fill: none; stroke: var(--profileInk, #37474f); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; } .ds-glyph--lg .ds-glyph-line { stroke-width: 1.9; } .ds-glyph-start { fill: var(--ink, #212121); } .ds-open--live .ds-glyph-line { stroke: var(--live, #0f7a3d); } .ds-open--live .ds-glyph-start { fill: var(--live, #0f7a3d); } .ds-open-pulse { position: relative; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--live, #0f7a3d); } .ds-open-pulse::after { content: \"\"; position: absolute; inset: 0; border-radius: 50%; background: var(--live, #0f7a3d); animation: ds-live-ping 2.6s cubic-bezier(.16, 1, .3, 1) infinite; } @keyframes ds-live-ping { 0% { transform: scale(1); opacity: .5 } 70% { transform: scale(3.4); opacity: 0 } 100% { transform: scale(3.4); opacity: 0 } } @media (prefers-reduced-motion: reduce) { .ds-open-pulse::after { animation-duration: .01ms; animation-iteration-count: 1 } }"
+    },
+    {
+      "name": "Fleet Roster",
+      "kind": "nav",
+      "refersTo": "fleet-item",
+      "description": "A disclosure strip of every device with its last signal, opened by default only when one has gone silent. Live dot filled green; silent dot hollowed by an inset amber ring.",
+      "html": "<section class=\"ds-fleet\"><details class=\"ds-fleet-details\" open><summary class=\"ds-fleet-summary\"><span class=\"ds-fleet-title\">Flota</span><span class=\"ds-fleet-tally\"><span class=\"ds-fleet-count ds-fleet-count--live\">1 reportando</span><span class=\"ds-fleet-sep\">·</span><span class=\"ds-fleet-count ds-fleet-count--silent\">1 sin señal</span><span class=\"ds-fleet-sep\">·</span><span class=\"ds-fleet-count\">3 dispositivos</span></span></summary><ul class=\"ds-fleet-list\"><li class=\"ds-fleet-item ds-fleet-item--live\"><span class=\"ds-fleet-light\"></span><span class=\"ds-fleet-name\">LV-XKM · Cessna 150</span><span class=\"ds-fleet-signal\">hace 40 s</span></li><li class=\"ds-fleet-item ds-fleet-item--silent\"><span class=\"ds-fleet-light\"></span><span class=\"ds-fleet-name\">LV-BQP · Ultraliviano</span><span class=\"ds-fleet-signal\">hace 12 días</span></li><li class=\"ds-fleet-item ds-fleet-item--quiet\"><span class=\"ds-fleet-light\"></span><span class=\"ds-fleet-name\">LV-MDQ · Piper PA-11</span><span class=\"ds-fleet-signal\">hace 2 días</span></li></ul></details></section>",
+      "css": ".ds-fleet { margin: 0 0 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border, #e0e0e0); font: 16px/1.5 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: var(--ink, #212121); } .ds-fleet-summary { display: flex; align-items: baseline; gap: 8px 14px; flex-wrap: wrap; cursor: pointer; padding: 2px 8px 2px 0; list-style: none; } .ds-fleet-summary::-webkit-details-marker { display: none; } .ds-fleet-summary:focus-visible { outline: 2px solid var(--accent, #0288d1); outline-offset: 3px; } .ds-fleet-summary::after { content: \"\"; width: 7px; height: 7px; margin-left: auto; border-right: 1.5px solid var(--muted, #616161); border-bottom: 1.5px solid var(--muted, #616161); transform: rotate(45deg) translateY(-1px); transition: transform .18s cubic-bezier(.16, 1, .3, 1); } .ds-fleet-details[open] .ds-fleet-summary::after { transform: rotate(-135deg) translateY(-1px); } .ds-fleet-title { font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--muted, #616161); } .ds-fleet-tally { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; font-size: 13px; } .ds-fleet-count { color: var(--muted, #616161); font-variant-numeric: tabular-nums; } .ds-fleet-count--live { color: var(--live, #0f7a3d); font-weight: 600; } .ds-fleet-count--silent { color: var(--warnInk, #5d4409); font-weight: 600; } .ds-fleet-sep { color: var(--muted, #616161); } .ds-fleet-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 26px; } .ds-fleet-item { display: grid; grid-template-columns: 7px minmax(0, 1fr) auto; align-items: baseline; gap: 9px; font-size: 14px; } .ds-fleet-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; } .ds-fleet-light { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--muted, #616161); transform: translateY(-2px); } .ds-fleet-item--live .ds-fleet-light { background: var(--live, #0f7a3d); } .ds-fleet-item--silent .ds-fleet-light { background: none; box-shadow: inset 0 0 0 1.5px var(--warnInk, #5d4409); } .ds-fleet-signal { color: var(--muted, #616161); font-size: 13px; font-variant-numeric: tabular-nums; } .ds-fleet-item--live .ds-fleet-signal { color: var(--live, #0f7a3d); } .ds-fleet-item--silent .ds-fleet-signal { color: var(--warnInk, #5d4409); }"
+    },
+    {
+      "name": "Day Heading",
+      "kind": "custom",
+      "refersTo": "day-heading",
+      "description": "The date gutter's group label with the day's flown total footed at the other end, so the heading states a fact the reader can check against the rows beneath it.",
+      "html": "<h2 class=\"ds-day-heading\"><span class=\"ds-day-name\">Hoy · martes 9 sep</span><span class=\"ds-day-total\">2 vuelos · 1:45</span></h2>",
+      "css": ".ds-day-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 14px; flex-wrap: wrap; margin: 24px 0 3px; padding: 0 8px; font: 600 12px/1.5 system-ui, -apple-system, \"Segoe UI\", sans-serif; letter-spacing: .07em; text-transform: uppercase; color: var(--muted, #616161); } .ds-day-total { font-weight: 400; letter-spacing: .02em; font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Stat Tiles",
+      "kind": "card",
+      "refersTo": "stat-tile",
+      "description": "The flight page's figures: 24px value over an uppercase muted label, no boxes. Metric appears only here as a muted second line, and the ELEV GPS tile is the one rendered in caution amber.",
+      "html": "<div class=\"ds-stats\"><div><div class=\"ds-stat-value\">62.4 NM<span class=\"ds-stat-metric\">115.6 km</span></div><div class=\"ds-stat-label\">Distancia</div></div><div><div class=\"ds-stat-value\">1:04</div><div class=\"ds-stat-label\">Duración</div></div><div><div class=\"ds-stat-value\">98 kt<span class=\"ds-stat-metric\">181 km/h</span></div><div class=\"ds-stat-label\">GS máx</div></div><div><div class=\"ds-stat-value ds-stat-warn\">1.204 / 892 ft<span class=\"ds-stat-metric\">367.0 / 271.9 m</span></div><div class=\"ds-stat-label\">ELEV GPS máx/mín</div></div></div>",
+      "css": ".ds-stats { display: flex; flex-wrap: wrap; gap: 20px; margin: 12px 0 18px; font: 16px/1.5 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: var(--ink, #212121); } .ds-stat-value { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; } .ds-stat-metric { display: inline; margin-left: 6px; font-size: 14px; font-weight: 400; color: var(--muted, #616161); } .ds-stat-label { font-size: 13px; color: var(--muted, #616161); text-transform: uppercase; letter-spacing: .04em; } .ds-stat-warn { color: var(--warnInk, #5d4409); }"
+    },
+    {
+      "name": "Warning Callout",
+      "kind": "custom",
+      "refersTo": "warning-callout",
+      "description": "The altitude honesty commitment as a component: amber panel, amber hairline, block lead line, 8px radius.",
+      "html": "<div class=\"ds-warning\"><strong>La altitud de este vuelo no es confiable.</strong>Llega en pasos de 0,1 m y no cambió en tramos estacionarios consecutivos. La ausencia de franjas sombreadas en vuelo no prueba nada.</div>",
+      "css": ".ds-warning { background: var(--warnBg, #fff8e1); border: 1px solid var(--warnBorder, #f0d488); border-radius: 8px; padding: 12px 14px; margin: 18px 0; font: 14px/1.5 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: var(--warnInk, #5d4409); } .ds-warning strong { display: block; margin-bottom: 4px; }"
+    },
+    {
+      "name": "Speed Legend",
+      "kind": "chip",
+      "refersTo": "map-card",
+      "description": "The eight-band ground-speed ramp with per-flight bounds, since bands are relative to that flight's fastest point. Same data as the polyline on the map.",
+      "html": "<div class=\"ds-legend\"><span class=\"ds-legend-title\">GS</span><div class=\"ds-legend-scale\"><div class=\"ds-legend-steps\"><span class=\"ds-legend-step\" style=\"background:#1173d4\"></span><span class=\"ds-legend-step\" style=\"background:#11d4d4\"></span><span class=\"ds-legend-step\" style=\"background:#11d473\"></span><span class=\"ds-legend-step\" style=\"background:#11d411\"></span><span class=\"ds-legend-step\" style=\"background:#73d411\"></span><span class=\"ds-legend-step\" style=\"background:#d4d411\"></span><span class=\"ds-legend-step\" style=\"background:#d47311\"></span><span class=\"ds-legend-step\" style=\"background:#d41111\"></span></div><div class=\"ds-legend-ticks\"><span>0 kt</span><span>98 kt</span></div></div></div>",
+      "css": ".ds-legend { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; margin-bottom: 12px; font: 16px/1.5 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: var(--ink, #212121); } .ds-legend-title { font-size: 12px; color: var(--muted, #616161); text-transform: uppercase; letter-spacing: .04em; } .ds-legend-scale { flex: 1 1 200px; max-width: 420px; } .ds-legend-steps { display: flex; height: 10px; border-radius: 5px; overflow: hidden; } .ds-legend-step { flex: 1; } .ds-legend-ticks { display: flex; justify-content: space-between; margin-top: 3px; font-size: 12px; color: var(--muted, #616161); font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Hover Readout",
+      "kind": "custom",
+      "refersTo": "map-card",
+      "description": "The map inspector's label-above-value pairs, sitting under the map rather than floating over it. ELEV GPS stays in caution amber here too.",
+      "html": "<div class=\"ds-inspector\"><div class=\"ds-readout\"><div class=\"ds-readout-item\"><span class=\"ds-readout-label\">Hora</span><span class=\"ds-readout-value\">15:12:04</span></div><div class=\"ds-readout-item\"><span class=\"ds-readout-label\">GS</span><span class=\"ds-readout-value\">91 kt</span></div><div class=\"ds-readout-item\"><span class=\"ds-readout-label\">TRK</span><span class=\"ds-readout-value\">248°</span></div><div class=\"ds-readout-item\"><span class=\"ds-readout-label\">ELEV GPS</span><span class=\"ds-readout-value ds-stat-warn\">1.204 ft</span></div></div></div>",
+      "css": ".ds-inspector { background: var(--surface, #ffffff); border: 1px solid var(--border, #e0e0e0); border-radius: 0 0 8px 8px; padding: 12px 16px 14px; font: 16px/1.5 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: var(--ink, #212121); } .ds-readout { display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: baseline; min-height: 30px; } .ds-readout-item { display: flex; align-items: baseline; gap: 6px; } .ds-readout-label { font-size: 12px; color: var(--muted, #616161); text-transform: uppercase; letter-spacing: .04em; } .ds-readout-value { font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; } .ds-stat-warn { color: var(--warnInk, #5d4409); }"
+    },
+    {
+      "name": "Identity Band",
+      "kind": "nav",
+      "refersTo": "header-navy",
+      "description": "The one surface that never follows the reader's preference: navy in both themes, wordmark home link, and a back link with a currentColor hairline.",
+      "html": "<header class=\"ds-header\"><h1 class=\"ds-header-title\"><a href=\"/\">RSA · seguimiento de vuelos</a></h1><a class=\"ds-back\" href=\"/\">&larr; Todos los vuelos</a></header>",
+      "css": ".ds-header { background: #0d2a54; color: #ffffff; padding: 16px 20px; display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; font: 16px/1.5 system-ui, -apple-system, \"Segoe UI\", sans-serif; } .ds-header-title { margin: 0; font-size: 20px; } .ds-header-title a { color: #ffffff; text-decoration: none; } .ds-back { color: #9fc4ff; font-size: 14px; text-decoration: none; border-bottom: 1px solid currentColor; } .ds-back:hover { color: #ffffff; } .ds-back:focus-visible { outline: 2px solid var(--accent, #4fc3f7); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Logbook Instrument",
+    "overview": "This is a flight logbook rendered by an instrument that refuses to overstate what it measured. The page is paper-flat and ruled: hairlines separate entries, columns of tabular numerals run straight down the page, and a single navy band across the top is the only piece of the interface that does not follow the reader's colour preference. Nothing floats, nothing glows, and nothing is boxed that a rule can separate instead.\n\nIts density is deliberate. The index exists so an operator can run an eye down thirty entries, so entries are rows and not cards: the equal-weight card grid and the hero-metric slab were both refused in the build, and the one place a large numeral was tempting — the open entry — was pulled back to 16px so it would not become a metric panel sitting above its own column header. The one flight still in the air is the open line: it carries the only saturated colour on the page and, uniquely, no closing rule beneath it.\n\nColour here is evidence, not decoration. Every colour is a Palette token in server/src/views/theme.ts, every CSS rule reads var(--token), and each pairing that carries text or shape is asserted by a WCAG contrast test that computes the ratio itself rather than trusting a helper from production. The product's defining honesty commitment — that recorded altitude is not trustworthy — is drawn, not just written: the elevation stat is the one figure rendered in warning ink, and the columns whose value merely repeated the previous sample are shaded behind the trace.",
+    "keyCharacteristics": [
+      "Hairline rules instead of boxes; no shadows anywhere.",
+      "Tabular numerals in one shared column template, from the header through every row.",
+      "One navy identity band, fixed across both themes.",
+      "One saturated accent (live green), and it never speaks without words beside it.",
+      "Light and dark both first-class via prefers-color-scheme, with no manual toggle.",
+      "Every colour is a token whose contrast is asserted in a test."
+    ],
+    "rules": [
+      { "name": "The Token-Only Colour Rule", "body": "No colour is ever stated twice. Every colour is a Palette key, cssVariables() emits one custom property per key, and every CSS rule reads var(--token). A literal hex in a stylesheet rule is a defect, not a shortcut.", "section": "colors" },
+      { "name": "The Measured Palette Rule", "body": "A colour enters the palette only with an executable contrast assertion behind it, and it is measured as it renders: a tint is composited at the exact opacity that ships before it is measured. Text pairings clear 4.5:1, non-text shape and border pairings clear 3:1, and a region tint only has to be perceptible (1.5:1) because it is not a shape whose form must be read.", "section": "colors" },
+      { "name": "The Never Colour Alone Rule", "body": "No state is ever signalled by colour alone. Contrast ratio measures luminance and cannot express hue distinctness, so the distinction between the live green and the focus cyan is protected by words — \"En curso\", \"reportando\", \"Sin señal\" — rather than by a number that would only look like a check.", "section": "colors" },
+      { "name": "The Honest Number Rule", "body": "A figure the product does not trust is never rendered as if it were trusted. Elevation is always in caution amber, everywhere it appears, and the frozen samples behind the trace are drawn rather than footnoted.", "section": "colors" },
+      { "name": "The Tabular Column Rule", "body": "Every numeral that sits in a column carries font-variant-numeric: tabular-nums and is right-aligned in the wide layout. Numbers that must be compared down a page are never proportional.", "section": "typography" },
+      { "name": "The Bare Numeral Rule", "body": "The column header names the unit; the rows carry bare numerals. Below 620px the header is hidden and per-cell unit spans (h, NM, kt máx, pt) turn on in its place. A unit is stated once per view, never twice.", "section": "typography" },
+      { "name": "The Named Instrument Rule", "body": "A label names the instrument, not the quantity: GS for ground speed, TRK for true track, ELEV GPS for the WGS84-ellipsoid elevation — never \"altitud\".", "section": "typography" },
+      { "name": "The No-Shadow Rule", "body": "Surfaces are flat at every state. If something must read as raised, give it the card tone and a hairline; if something must read as separated, rule it. An offset drop shadow has no place in this world.", "section": "elevation" },
+      { "name": "The Hairline-Over-Box Rule", "body": "A hairline separates; a box encloses. Entries in a ledger are separated, so no entry ever gets a box of its own. A border only becomes a full outline on a genuine container: the map card, the profile, the inspector, the warning callout.", "section": "elevation" },
+      { "name": "The Contrast-Floor Hover Rule", "body": "A hover mark must clear the same contrast floor as the resting rules around it. The row's background swap alone is 1.02:1 in light and an inset border-token hairline is 1.27:1, so the actual mark is an underline on the aircraft name at full ink contrast — which is also the conventional affordance for what the row is: a link.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do define every colour as a Palette key in theme.ts and read it as var(--token); add its contrast assertion to theme.contrast.test.ts in the same change.",
+      "Do measure a tint as it composites at the exact opacity that ships (MAX_FROZEN_OPACITY is 0.55; past 0.59 the dark theme's trace-on-shading falls below 3:1).",
+      "Do separate repeated entries with hairlines and reach for the shared --nums template whenever a new numeric column appears, so the columns stay columns down the whole page.",
+      "Do give every numeral column font-variant-numeric: tabular-nums.",
+      "Do state a state in words as well as in colour.",
+      "Do keep both themes first-class through prefers-color-scheme, and keep the navy band outside both palettes.",
+      "Do draw icons as SVG or from borders, and keep glyph SVGs stroke-scaled with vector-effect=\"non-scaling-stroke\".",
+      "Do animate transform and opacity only, on a pseudo-element, and keep the reduced-motion guard in place.",
+      "Do write UI copy in Spanish (<html lang=\"es\">) with aviation units primary (kt, ft, NM) and metric only as a muted second line on the stat tiles.",
+      "Do label a figure with its instrument (GS, TRK, ELEV GPS)."
+    ],
+    "donts": [
+      "Don't put a colour literal in a CSS rule, or restate a token's value anywhere but theme.ts.",
+      "Don't add a box shadow. This world is flat; use the card tone and a hairline.",
+      "Don't box a ledger entry, and don't rely on a background swap alone as a hover mark — it measures 1.02:1.",
+      "Don't grow the open entry's figures into a hero-metric slab; they sit near the ledger's own scale, directly above the columns that name them.",
+      "Don't give the live line a closing rule. The missing bottom border is the whole metaphor.",
+      "Don't signal state with hue alone, and don't use the focus accent for text or for state.",
+      "Don't put a backtick in any comment in layout.ts. The whole stylesheet is a template literal; a backtick ends it and turns the next selector into a property access. This has broken the build twice.",
+      "Don't introduce a template engine, a client bundler, or a build step for client JavaScript, which ships as an ES5 string literal inside the view and is never type-checked.",
+      "Don't add a third client origin. Leaflet 1.9.4 and OpenStreetMap tiles, both SRI-pinned, are the only ones, and only on the flight page.",
+      "Don't add a web font or an icon font.",
+      "Don't add a manual theme toggle.",
+      "Don't draw text inside the profile SVG's stretched viewBox.",
+      "Don't make a number look more authoritative than it is. Elevation stays in caution amber, with its evidence attached."
+    ]
+  }
+}
