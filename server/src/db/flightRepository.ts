@@ -53,7 +53,6 @@ export interface DeviceStatus {
   deviceId: string;
   deviceLabel: string;
   lastSeenAt: Date | null;
-  packetCount: number;
 }
 
 export interface TrackPoint {
@@ -170,12 +169,14 @@ export async function listDeviceStatus(): Promise<DeviceStatus[]> {
     id: string;
     label: string;
     last_seen: Date | null;
-    packet_count: string;
   }>(
-    `SELECT d.id, d.label, MAX(t.captured_at) AS last_seen, COUNT(t.id) AS packet_count
+    // The last capture and nothing else. An earlier version also counted packets per device, which
+    // no caller ever read and which is the expensive half of this query: a count has to touch every
+    // row, while the maximum is the last entry of the (device_id, captured_at) index.
+    `SELECT d.id,
+            d.label,
+            (SELECT MAX(t.captured_at) FROM telemetry t WHERE t.device_id = d.id) AS last_seen
      FROM devices d
-     LEFT JOIN telemetry t ON t.device_id = d.id
-     GROUP BY d.id, d.label
      ORDER BY d.label ASC`
   );
 
@@ -183,7 +184,6 @@ export async function listDeviceStatus(): Promise<DeviceStatus[]> {
     deviceId: r.id,
     deviceLabel: r.label,
     lastSeenAt: r.last_seen,
-    packetCount: Number(r.packet_count),
   }));
 }
 

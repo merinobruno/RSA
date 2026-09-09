@@ -461,7 +461,6 @@ describe("flightListPage", () => {
       deviceId: `9f1c8a2e-0000-4000-8000-${label.length.toString().padStart(12, "0")}`,
       deviceLabel: label,
       lastSeenAt: lastSeenAgoMillis === null ? null : new Date(now - lastSeenAgoMillis),
-      packetCount: lastSeenAgoMillis === null ? 0 : 1200,
     };
   }
 
