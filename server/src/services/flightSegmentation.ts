@@ -34,6 +34,25 @@ export const STATIONARY_SPLIT_MILLIS = 10 * 60 * 1000;
 /** Below this, the aircraft is treated as not moving. 2 m/s is 7 km/h. */
 export const MOVING_SPEED_MPS = 2;
 
+/**
+ * How stale a flight's last packet may be and still read as in progress.
+ *
+ * Deliberately far tighter than [DATA_GAP_MILLIS], which answers a different question - whether
+ * tracking was ever switched off - rather than whether something is happening right now. At 1 Hz
+ * capture with a 30 second upload interval a packet should land within a minute; two minutes
+ * tolerates one missed cycle.
+ *
+ * This can only ever report what arrived. A phone inside a coverage hole is still flying and not
+ * reporting, and its packets will turn up later from the queue - so a surface built on this states
+ * the age of the last packet rather than claiming the aircraft has landed.
+ */
+export const LIVE_STALENESS_MILLIS = 2 * 60 * 1000;
+
+/** Whether a flight whose last packet landed at [lastPacketAtMillis] is still running. */
+export function isInProgress(lastPacketAtMillis: number, nowMillis: number): boolean {
+  return nowMillis - lastPacketAtMillis <= LIVE_STALENESS_MILLIS;
+}
+
 export interface StreamPoint {
   atMillis: number;
   speedMps: number;

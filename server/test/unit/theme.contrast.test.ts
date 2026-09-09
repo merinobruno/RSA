@@ -105,6 +105,20 @@ describe.each([
     expect(contrastRatio(palette.warnInk, palette.surface)).toBeGreaterThanOrEqual(TEXT_MINIMUM);
   });
 
+  it("renders the in-progress marker readably on the page and on a card", () => {
+    // It carries the words "En curso" as well as the status light, so it clears the text bar
+    // rather than the UI one.
+    expect(contrastRatio(palette.live, palette.bg)).toBeGreaterThanOrEqual(TEXT_MINIMUM);
+    expect(contrastRatio(palette.live, palette.surface)).toBeGreaterThanOrEqual(TEXT_MINIMUM);
+  });
+
+  // There is deliberately no assertion that `live` and `accent` are distinguishable from each
+  // other. Contrast ratio measures luminance, not hue, so two colours anyone can tell apart at a
+  // glance can sit at 1.1:1 - the measurement cannot express the property, and picking a threshold
+  // that happened to pass would only look like a check. What actually protects that distinction is
+  // that neither state is ever signalled by colour alone: the index writes "En curso" and
+  // "reportando" in words, which flightPages.test.ts holds.
+
   it("draws the elevation profile visibly against the card it sits on", () => {
     expect(contrastRatio(palette.profileInk, palette.surface)).toBeGreaterThanOrEqual(UI_MINIMUM);
   });

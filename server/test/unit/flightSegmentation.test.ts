@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   DATA_GAP_MILLIS,
+  LIVE_STALENESS_MILLIS,
   MOVING_SPEED_MPS,
   STATIONARY_SPLIT_MILLIS,
   findSegmentContaining,
+  isInProgress,
   segmentStream,
   trackDistanceMetres,
   type StreamPoint,
@@ -182,5 +184,32 @@ describe("trackDistanceMetres", () => {
 
     // A there-and-back track covers real distance even though it ends where it began.
     expect(trackDistanceMetres([there, away, there])).toBeGreaterThan(2000);
+  });
+});
+
+describe("isInProgress", () => {
+  const NOW = Date.parse("2026-09-09T15:00:00.000Z");
+
+  it("counts a flight whose packet just landed", () => {
+    expect(isInProgress(NOW - 5000, NOW)).toBe(true);
+  });
+
+  it("tolerates one missed upload cycle and no more", () => {
+    // The app uploads every 30 s, so a single skipped cycle is normal and must not read as landed.
+    expect(isInProgress(NOW - LIVE_STALENESS_MILLIS, NOW)).toBe(true);
+    expect(isInProgress(NOW - LIVE_STALENESS_MILLIS - 1, NOW)).toBe(false);
+  });
+
+  it("is far tighter than the gap that ends a flight", () => {
+    // The two thresholds answer different questions: whether tracking was ever switched off, and
+    // whether anything is happening right now. Sharing one value would call a flight live for a
+    // quarter of an hour after the aircraft was tied down.
+    expect(LIVE_STALENESS_MILLIS).toBeLessThan(DATA_GAP_MILLIS);
+    expect(isInProgress(NOW - DATA_GAP_MILLIS + 1000, NOW)).toBe(false);
+  });
+
+  it("accepts a capture time slightly ahead of now", () => {
+    // A phone with a skewed clock can hand the server a future timestamp; that is still live.
+    expect(isInProgress(NOW + 20_000, NOW)).toBe(true);
   });
 });

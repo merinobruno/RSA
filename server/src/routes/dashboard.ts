@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { findFlight, findTrack, listFlights } from "../db/flightRepository";
+import { findFlight, findTrack, listDeviceStatus, listFlights } from "../db/flightRepository";
 import { flightDetailPage, flightListPage } from "../views/flightPages";
 
 /**
@@ -18,6 +18,16 @@ import { flightDetailPage, flightListPage } from "../views/flightPages";
  */
 export const dashboardRouter = Router();
 
+/**
+ * The index with nothing in it, which is what a bad flight link gets.
+ *
+ * Answering a dead link with the empty index rather than a bare 404 body keeps the reader on a page
+ * with a way back, and it costs no query.
+ */
+function emptyIndex(): string {
+  return flightListPage({ flights: [], devices: [], nowMillis: Date.now() });
+}
+
 /** Rejects a path segment that is not a positive integer of milliseconds. */
 function parseInstant(raw: string): Date | null {
   if (!/^\d{1,15}$/.test(raw)) return null;
@@ -28,7 +38,10 @@ function parseInstant(raw: string): Date | null {
 
 dashboardRouter.get("/", async (_req, res, next) => {
   try {
-    res.type("html").send(flightListPage(await listFlights()));
+    // Both reads in parallel: neither depends on the other, and the index is the page most likely
+    // to be the one paying a free-tier cold start.
+    const [flights, devices] = await Promise.all([listFlights(), listDeviceStatus()]);
+    res.type("html").send(flightListPage({ flights, devices, nowMillis: Date.now() }));
   } catch (err) {
     next(err);
   }
@@ -38,13 +51,13 @@ dashboardRouter.get("/flights/:deviceId/:at", async (req, res, next) => {
   try {
     const instant = parseInstant(req.params.at);
     if (!instant) {
-      res.status(404).type("html").send(flightListPage([]));
+      res.status(404).type("html").send(emptyIndex());
       return;
     }
 
     const flight = await findFlight(req.params.deviceId, instant);
     if (!flight) {
-      res.status(404).type("html").send(flightListPage([]));
+      res.status(404).type("html").send(emptyIndex());
       return;
     }
 
@@ -67,6 +80,7 @@ dashboardRouter.get("/api/flights", async (_req, res, next) => {
         ended_at: f.endedAt.toISOString(),
         packet_count: f.packetCount,
         max_speed_mps: f.maxSpeedMps,
+        distance_m: f.distanceM,
       })),
     });
   } catch (err) {

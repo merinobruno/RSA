@@ -29,6 +29,14 @@ export interface Palette {
   profileInk: string;
   /** The shading over profile columns that repeated the previous sample. */
   profileFrozen: string;
+  /**
+   * A flight still receiving packets, and the only saturated colour on the index.
+   *
+   * It carries the "en curso" label as well as the status light, so it has to clear the text bar
+   * rather than the UI one. Kept distinct from [accent], which means focus and hover and would say
+   * the wrong thing about an aircraft in the air.
+   */
+  live: string;
 }
 
 export const LIGHT: Palette = {
@@ -44,6 +52,7 @@ export const LIGHT: Palette = {
   warnInk: "#5d4409",
   profileInk: "#37474f",
   profileFrozen: "#b26a00",
+  live: "#0f7a3d",
 };
 
 export const DARK: Palette = {
@@ -61,6 +70,7 @@ export const DARK: Palette = {
   warnInk: "#e8d9b0",
   profileInk: "#b0bec5",
   profileFrozen: "#c98f2e",
+  live: "#4ade80",
 };
 
 /**

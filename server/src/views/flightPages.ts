@@ -1,9 +1,21 @@
 import { escapeHtml, page } from "./layout";
 import { MAX_FROZEN_OPACITY, SPEED_RAMP, bandColour, bandSpeedBoundsKt } from "./theme";
-import type { FlightSummary, TrackPoint } from "../db/flightRepository";
-import { trackDistanceMetres } from "../services/flightSegmentation";
+import type { DeviceStatus, FlightSummary, TrackPoint } from "../db/flightRepository";
+import {
+  DATA_GAP_MILLIS,
+  isInProgress,
+  trackDistanceMetres,
+} from "../services/flightSegmentation";
 import { SPEED_BAND_COUNT, bandTrack } from "../services/trackBanding";
-import { KNOTS_PER_MPS, formatKnots, formatNauticalMiles, toFeet } from "../services/units";
+import type { ShapePoint } from "../services/trackShape";
+import {
+  KNOTS_PER_MPS,
+  formatKnots,
+  formatNauticalMiles,
+  toFeet,
+  toKnots,
+  toNauticalMiles,
+} from "../services/units";
 import { frozenBands, profileColumns, profileScale } from "../services/verticalProfile";
 
 /**
@@ -68,31 +80,431 @@ export function flightPath(flight: FlightSummary): string {
   return `/flights/${encodeURIComponent(flight.deviceId)}/${flight.startedAt.getTime()}`;
 }
 
-export function flightListPage(flights: FlightSummary[]): string {
-  if (flights.length === 0) {
-    return page(
-      "Vuelos",
-      `<p class="empty">Todavía no hay vuelos registrados. Aparecen solos acá cuando un dispositivo
-       empieza a capturar.</p>`
-    );
-  }
+/**
+ * Duration as h:mm rather than "38 min".
+ *
+ * The ledger's columns only read as columns when every cell is the same shape, and h:mm is how a
+ * logbook states time anyway. The open entry above the ledger is a headline rather than a column,
+ * so it keeps the friendlier wording.
+ */
+function hoursMinutes(from: Date, to: Date): string {
+  const minutes = Math.max(0, Math.round((to.getTime() - from.getTime()) / 60000));
+  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;
+}
 
-  const items = flights
-    .map(
-      (f) => `
-      <a class="flight" href="${escapeHtml(flightPath(f))}">
-        <div class="flight-label">${escapeHtml(f.deviceLabel)}</div>
-        <div class="flight-when">
-          ${escapeHtml(localDateTime(f.startedAt))} a ${escapeHtml(localTime(f.endedAt))} GMT-3
-          · ${escapeHtml(durationText(f.startedAt, f.endedAt))}
-          · ${escapeHtml(f.packetCount.toLocaleString("es-AR"))} puntos
-          · máx ${escapeHtml(formatKnots(f.maxSpeedMps))}
+/**
+ * The local calendar day, as a sortable key.
+ *
+ * Shifting by the fixed offset and reading the UTC date is the whole conversion, because Argentina
+ * keeps no daylight saving. Grouping on the raw UTC date instead would file every flight after
+ * 21:00 local under the following day.
+ */
+function localDayKey(d: Date): string {
+  return new Date(d.getTime() + TZ_OFFSET_MINUTES * 60000).toISOString().slice(0, 10);
+}
+
+function localDay(d: Date): string {
+  return new Intl.DateTimeFormat("es-AR", {
+    timeZone: TZ,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(d);
+}
+
+/**
+ * The day's totals, the way a logbook foots each page.
+ *
+ * A count, the hours flown and the distance covered. It is also what makes the day heading
+ * answerable: "Hoy" over a list is a label, "Hoy · 2 vuelos · 1:26" is a fact the reader can check
+ * against the rows beneath it.
+ */
+function dayTotal(flights: FlightSummary[]): string {
+  const minutes = flights.reduce(
+    (total, f) => total + Math.round((f.endedAt.getTime() - f.startedAt.getTime()) / 60000),
+    0
+  );
+  const miles = flights.reduce((total, f) => total + toNauticalMiles(f.distanceM), 0);
+
+  return [
+    `${flights.length} ${flights.length === 1 ? "vuelo" : "vuelos"}`,
+    `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")} h`,
+    `${miles.toFixed(1)} NM`,
+  ].join(" · ");
+}
+
+/** "Hoy" and "Ayer" carry more than a date does for the two days a reader actually asks about. */
+function dayHeading(d: Date, nowMillis: number): string {
+  const key = localDayKey(d);
+  if (key === localDayKey(new Date(nowMillis))) return "Hoy";
+  if (key === localDayKey(new Date(nowMillis - 24 * 60 * 60 * 1000))) return "Ayer";
+  return localDay(d);
+}
+
+/**
+ * How long ago something happened, at the coarsest granularity that is still true.
+ *
+ * Rendered on the server, so it ages between request and read. The page refreshes itself while a
+ * flight is running, and the granularity below a minute is deliberately vague rather than a
+ * second count that would be visibly wrong the moment it arrives.
+ */
+export function relativeAge(fromMillis: number, nowMillis: number): string {
+  const seconds = Math.max(0, Math.round((nowMillis - fromMillis) / 1000));
+  if (seconds < 45) return "hace instantes";
+
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `hace ${minutes} min`;
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `hace ${hours} h`;
+
+  return `hace ${Math.round(hours / 24)} d`;
+}
+
+/**
+ * How quiet a registered device has to be before the roster says so out loud.
+ *
+ * A week, and it is a judgement rather than a measurement: an aircraft that flies at weekends is
+ * legitimately silent for days, so anything shorter would cry wolf. What it is really watching for
+ * is this project's one risk with no software fix - an OEM battery manager killing the background
+ * service - whose only symptom is silence. The roster states the age either way and only changes
+ * its emphasis here.
+ */
+const SILENT_AFTER_MILLIS = 7 * 24 * 60 * 60 * 1000;
+
+type DeviceState = "live" | "quiet" | "silent";
+
+function deviceState(device: DeviceStatus, nowMillis: number): DeviceState {
+  if (!device.lastSeenAt) return "silent";
+  if (isInProgress(device.lastSeenAt.getTime(), nowMillis)) return "live";
+  return nowMillis - device.lastSeenAt.getTime() > SILENT_AFTER_MILLIS ? "silent" : "quiet";
+}
+
+function deviceSignal(device: DeviceStatus, nowMillis: number): string {
+  if (!device.lastSeenAt) return "nunca reportó";
+
+  const age = relativeAge(device.lastSeenAt.getTime(), nowMillis);
+  const state = deviceState(device, nowMillis);
+  if (state === "live") return `reportando, ${age}`;
+  return state === "silent" ? `sin señal ${age}` : age;
+}
+
+/**
+ * The track as a glyph: a polyline in a unit box, with a mark at the first fix.
+ *
+ * The viewBox is padded past the box so a stroke on the edge is not sliced in half, and the
+ * polyline's stroke is non-scaling so one flight's outline is not drawn heavier than another's
+ * because it happened to be more compact.
+ */
+function trackGlyph(shape: ShapePoint[], extraClass = ""): string {
+  const className = `glyph${extraClass ? ` ${extraClass}` : ""}`;
+  if (shape.length < 2) return `<span class="${className} glyph--none"></span>`;
+
+  const points = shape.map((p) => `${p.x},${p.y}`).join(" ");
+  return `<svg class="${className}" viewBox="-0.08 -0.08 1.16 1.16"
+       preserveAspectRatio="xMidYMid meet" focusable="false">
+    <polyline class="glyph-line" points="${escapeHtml(points)}" vector-effect="non-scaling-stroke"/>
+    <circle class="glyph-start" cx="${escapeHtml(shape[0].x)}" cy="${escapeHtml(
+      shape[0].y
+    )}" r="0.075"/>
+  </svg>`;
+}
+
+/**
+ * One spoken sentence per row rather than seven loose fragments.
+ *
+ * Every cell inside the link is hidden from assistive technology and this label replaces the lot:
+ * a screen reader announcing "11:00, 0:38, 6,9, 74, 2.400" has been handed the columns without the
+ * headings that made them mean anything.
+ */
+function flightLabel(f: FlightSummary): string {
+  return [
+    f.deviceLabel,
+    `${localDateTime(f.startedAt)} GMT-3`,
+    `duración ${durationText(f.startedAt, f.endedAt)}`,
+    `distancia ${formatNauticalMiles(f.distanceM)}`,
+    `GS máxima ${formatKnots(f.maxSpeedMps)}`,
+    `${f.packetCount.toLocaleString("es-AR")} puntos`,
+  ].join(", ");
+}
+
+/**
+ * One ledger line.
+ *
+ * The numeric cells are nested in their own grid so the same template can serve two layouts: one
+ * line of aligned columns on a wide screen, two lines on a narrow one. The `u` spans carry each
+ * figure's unit and appear only on the narrow layout, where the column header that would otherwise
+ * have named them is not on screen - four bare numerals with nothing to say what they are is the
+ * failure this redesign exists to fix, and it would be a shame to reintroduce it on the phone.
+ */
+function ledgerRow(f: FlightSummary): string {
+  return `<li class="row">
+      <a class="entry" href="${escapeHtml(flightPath(f))}"
+         aria-label="${escapeHtml(flightLabel(f))}">
+        <time class="cell cell--time" aria-hidden="true"
+              datetime="${escapeHtml(f.startedAt.toISOString())}">${escapeHtml(
+                localTime(f.startedAt)
+              )}</time>
+        <span class="cell cell--glyph" aria-hidden="true">${trackGlyph(f.shape)}</span>
+        <span class="cell cell--craft" aria-hidden="true">${escapeHtml(f.deviceLabel)}</span>
+        <span class="cell-nums" aria-hidden="true">
+          <span class="cell cell--num">${escapeHtml(
+            hoursMinutes(f.startedAt, f.endedAt)
+          )}<span class="u">h</span></span>
+          <span class="cell cell--num">${escapeHtml(
+            toNauticalMiles(f.distanceM).toFixed(1)
+          )}<span class="u">NM</span></span>
+          <span class="cell cell--num">${escapeHtml(
+            Math.round(toKnots(f.maxSpeedMps))
+          )}<span class="u">kt máx</span></span>
+          <span class="cell cell--num cell--faint">${escapeHtml(
+            f.packetCount.toLocaleString("es-AR")
+          )}<span class="u">pt</span></span>
+        </span>
+      </a>
+    </li>`;
+}
+
+/**
+ * How the newest flight stands right now.
+ *
+ * Three states rather than two, because two would overclaim. `pending` is the honest middle: the
+ * last packet is minutes old, which is longer than a missed upload cycle but shorter than the gap
+ * that ends a flight - so nothing has closed this flight, and the aircraft may simply be inside a
+ * coverage hole with its packets queued on the phone. Calling that "Último vuelo" would tell the
+ * operator the flight is over on exactly the question they asked for by name.
+ */
+type LeadState = "live" | "pending" | "closed";
+
+export function leadState(lastPacketAtMillis: number, nowMillis: number): LeadState {
+  if (isInProgress(lastPacketAtMillis, nowMillis)) return "live";
+  return nowMillis - lastPacketAtMillis < DATA_GAP_MILLIS ? "pending" : "closed";
+}
+
+/**
+ * The newest flight, as the ledger's own top line rather than a metric slab.
+ *
+ * The figures carry no labels of their own: they sit on the shared `--nums` template directly
+ * above the column header that names them, at close to the ledger's own scale. Giving them large
+ * numerals and their own small captions turned this into the big-number panel the direction
+ * explicitly refuses, with every caption repeated thirty pixels below.
+ */
+function openEntry(f: FlightSummary, state: LeadState, nowMillis: number): string {
+  const age = escapeHtml(relativeAge(f.endedAt.getTime(), nowMillis));
+  const status =
+    state === "live"
+      ? `<span class="open-live"><span class="open-pulse"></span>En curso</span>
+         <span class="open-age">último paquete ${age}</span>`
+      : state === "pending"
+        ? `<span class="open-pending">Sin señal</span>
+           <span class="open-age">último paquete ${age} · nada lo cerró todavía</span>`
+        : `<span class="open-last">Último vuelo</span><span class="open-age">${age}</span>`;
+  const live = state === "live";
+
+  // The same four figures as the ledger, in the same order, on the same column template - so the
+  // open line's numbers sit directly above the columns they belong to. That shared grammar is the
+  // whole reason this is an entry rather than a hero panel bolted on top of a table.
+  const spoken =
+    state === "live" ? "Vuelo en curso" : state === "pending" ? "Vuelo sin señal" : "Último vuelo";
+
+  // The date, always. An earlier version stated clock times only, which reads fine for a flight
+  // that landed an hour ago and says nothing at all about one from last Tuesday.
+  const when = `${localDay(f.startedAt)}, ${localTime(f.startedAt)}${
+    live ? "" : ` a ${localTime(f.endedAt)}`
+  }`;
+
+  // A pending flight is open too - nothing closed it - so it is drawn without a closing rule as
+  // well, in the colour its own label uses rather than the live green it is not earning.
+  return `<section class="open open--${escapeHtml(state)}">
+      <a class="open-entry" href="${escapeHtml(flightPath(f))}"
+         aria-label="${escapeHtml(`${spoken}. ${flightLabel(f)}`)}">
+        <div class="open-status" aria-hidden="true">${status}</div>
+        <span class="open-glyph" aria-hidden="true">${trackGlyph(f.shape, "glyph--lg")}</span>
+        <div class="open-body" aria-hidden="true">
+          <span class="open-craft">${escapeHtml(f.deviceLabel)}</span>
+          <span class="open-when">${escapeHtml(when)}</span>
         </div>
-      </a>`
+        <span class="cell-nums open-figures" aria-hidden="true">
+          <span class="cell cell--num">${escapeHtml(
+            hoursMinutes(f.startedAt, f.endedAt)
+          )}<span class="u">h</span></span>
+          <span class="cell cell--num">${escapeHtml(
+            toNauticalMiles(f.distanceM).toFixed(1)
+          )}<span class="u">NM</span></span>
+          <span class="cell cell--num">${escapeHtml(
+            Math.round(toKnots(f.maxSpeedMps))
+          )}<span class="u">kt máx</span></span>
+          <span class="cell cell--num cell--faint">${escapeHtml(
+            f.packetCount.toLocaleString("es-AR")
+          )}<span class="u">pt</span></span>
+        </span>
+      </a>
+    </section>`;
+}
+
+/** Silent first, then reporting, then merely parked: the order the operator needs them in. */
+const STATE_ORDER: Record<DeviceState, number> = { silent: 0, live: 1, quiet: 2 };
+
+/**
+ * The fleet, as one line that opens.
+ *
+ * An earlier version listed every device above everything else, and with eight of them it filled
+ * the first screen of a page whose job is to open a flight. A warning that is always on, always
+ * the same size, is furniture rather than a warning - so the count and the problem stay on the
+ * summary line, the per-device detail collapses behind it, and the whole thing springs open by
+ * itself when a device has actually gone quiet. `details` does this natively: no script, keyboard
+ * reachable, and it survives a page with no JavaScript at all.
+ */
+function roster(devices: DeviceStatus[], nowMillis: number): string {
+  if (devices.length === 0) return "";
+
+  const withState = devices
+    .map((device) => ({ device, state: deviceState(device, nowMillis) }))
+    .sort(
+      (a, b) =>
+        STATE_ORDER[a.state] - STATE_ORDER[b.state] ||
+        a.device.deviceLabel.localeCompare(b.device.deviceLabel, "es")
+    );
+
+  const silent = withState.filter((d) => d.state === "silent");
+  const live = withState.filter((d) => d.state === "live");
+
+  const tally = [
+    live.length > 0
+      ? `<span class="fleet-count fleet-count--live">${live.length} reportando</span>`
+      : "",
+    silent.length > 0
+      ? `<span class="fleet-count fleet-count--silent">${silent.length} sin señal</span>`
+      : "",
+    `<span class="fleet-count">${devices.length} ${
+      devices.length === 1 ? "aeronave" : "aeronaves"
+    }</span>`,
+  ]
+    .filter(Boolean)
+    .join('<span class="fleet-sep">·</span>');
+
+  const items = withState
+    .map(
+      ({ device, state }) => `<li class="fleet-item fleet-item--${state}">
+          <span class="fleet-light"></span>
+          <span class="fleet-name">${escapeHtml(device.deviceLabel)}</span>
+          <span class="fleet-signal">${escapeHtml(deviceSignal(device, nowMillis))}</span>
+        </li>`
     )
     .join("");
 
-  return page("Vuelos", `<h2>Vuelos</h2>${items}`);
+  // Open by itself when something is quiet, so the one case worth interrupting for cannot be
+  // missed, and closed on a healthy fleet, where it is only a reassurance.
+  return `<section class="fleet">
+      <details class="fleet-details"${silent.length > 0 ? " open" : ""}>
+        <summary class="fleet-summary">
+          <span class="fleet-title">Flota</span>
+          <span class="fleet-tally">${tally}</span>
+        </summary>
+        <ul class="fleet-list">${items}</ul>
+      </details>
+    </section>`;
+}
+
+export interface FlightIndex {
+  /** Newest first, as [listFlights] returns them. */
+  flights: FlightSummary[];
+  devices: DeviceStatus[];
+  nowMillis: number;
+}
+
+export function flightListPage(index: FlightIndex): string {
+  const { flights, devices, nowMillis } = index;
+  const fleet = roster(devices, nowMillis);
+
+  if (flights.length === 0) {
+    return page(
+      "Vuelos",
+      `${fleet}
+       <p class="empty">Todavía no hay vuelos registrados. Aparecen solos acá cuando un dispositivo
+       empieza a capturar y se mueve.</p>`
+    );
+  }
+
+  const lead = flights[0];
+  const state = leadState(lead.endedAt.getTime(), nowMillis);
+
+  // Every flight is grouped, the newest included. An earlier version pulled the lead out of `rest`
+  // and grouped the remainder, which quietly removed the newest flight from its own day: a page
+  // where two flights happened today showed "Hoy" with one row under it. The open entry is a
+  // shortcut to the top of the book, not a hole in it.
+  const groups: Array<{ key: string; heading: string; flights: FlightSummary[] }> = [];
+  for (const f of flights) {
+    const key = localDayKey(f.startedAt);
+    const current = groups[groups.length - 1];
+    if (current && current.key === key) current.flights.push(f);
+    else groups.push({ key, heading: dayHeading(f.startedAt, nowMillis), flights: [f] });
+  }
+
+  const ledger = groups
+    .map(
+      (g) => `<section class="day">
+        <h2 class="day-heading">
+          <span class="day-name">${escapeHtml(g.heading)}</span>
+          <span class="day-total">${escapeHtml(dayTotal(g.flights))}</span>
+        </h2>
+        <ol class="rows">${g.flights.map(ledgerRow).join("")}</ol>
+      </section>`
+    )
+    .join("");
+
+  // The column meanings live once, in the header, so the rows and the open entry above can carry
+  // bare numerals. Sticky, because a thirty-entry ledger scrolls its only key off screen
+  // otherwise. Hidden from assistive technology: every row states its figures in words instead.
+  const columns = `<div class="rows-head" aria-hidden="true">
+      <span>Hora</span><span></span><span>Aeronave</span>
+      <span class="cell-nums">
+        <span class="cell--num">Dur.</span><span class="cell--num">NM</span>
+        <span class="cell--num">GS máx</span><span class="cell--num">Puntos</span>
+      </span>
+    </div>`;
+
+  // Only while something is flying, and only while the tab is actually being looked at. This is
+  // the page reloading itself rather than a live channel - the design has no polling service and
+  // wants none - and a hidden tab reloading on a free-tier server would be spending someone's
+  // dyno on nobody.
+  // `pending` refreshes too, and it is the state that needs it most: it is the page saying nothing
+  // has closed this flight yet, so it is the page waiting for the queue to drain. Gating this on
+  // `live` alone left the one uncertain state frozen, unable to resolve its own question.
+  const refresh =
+    state === "live" || state === "pending"
+      ? `<p class="auto">Se actualiza sola cada 30 s mientras haya un vuelo sin cerrar.</p>
+         <script>
+           setTimeout(function () {
+             if (document.visibilityState === 'visible') location.reload();
+             else document.addEventListener('visibilitychange', function () { location.reload(); });
+           }, 30000);
+         </script>`
+      : "";
+
+  // The roster opens itself when a device is silent, which the reload above would otherwise
+  // re-impose every thirty seconds on an operator who had closed it. Session storage, so it is
+  // this tab's view state and nothing follows the reader to another day.
+  const rosterMemory = `<script>
+      (function () {
+        var box = document.querySelector('.fleet-details');
+        if (!box) return;
+        try {
+          var saved = sessionStorage.getItem('rsa.fleet');
+          if (saved !== null) box.open = saved === '1';
+          box.addEventListener('toggle', function () {
+            sessionStorage.setItem('rsa.fleet', box.open ? '1' : '0');
+          });
+        } catch (e) {
+          // Private mode or blocked storage. The server-rendered default stands.
+        }
+      })();
+    </script>`;
+
+  return page(
+    "Vuelos",
+    `${fleet}${openEntry(lead, state, nowMillis)}${columns}${ledger}${refresh}${rosterMemory}`
+  );
 }
 
 /**

@@ -2,9 +2,14 @@ import { getPool } from "./pool";
 import {
   findSegmentContaining,
   segmentStream,
+  trackDistanceMetres,
   type FlightSegment,
   type StreamPoint,
 } from "../services/flightSegmentation";
+import { trackShape, type ShapePoint } from "../services/trackShape";
+
+/** Enough vertices to recognise a circuit from a cross-country at glyph size, and no more. */
+const SHAPE_POINTS = 32;
 
 /**
  * Flights, derived from the telemetry stream rather than stored.
@@ -31,6 +36,24 @@ export interface FlightSummary {
   endedAt: Date;
   packetCount: number;
   maxSpeedMps: number;
+  /** Summed along the track. One definition, so the index and the flight page cannot disagree. */
+  distanceM: number;
+  /** The track reduced to a drawable outline in a unit box. Empty below two fixes. */
+  shape: ShapePoint[];
+}
+
+/**
+ * A registered device and when it was last heard from.
+ *
+ * Separate from flights on purpose: a phone whose background service was killed reports nothing at
+ * all, so it has no flight to appear in and would be invisible on a page that only lists flights.
+ * That failure mode is this project's known unfixable risk, and silence is the only symptom.
+ */
+export interface DeviceStatus {
+  deviceId: string;
+  deviceLabel: string;
+  lastSeenAt: Date | null;
+  packetCount: number;
 }
 
 export interface TrackPoint {
@@ -44,11 +67,17 @@ export interface TrackPoint {
   batteryPct: number;
 }
 
+interface SegmentMetrics {
+  maxSpeedMps: number;
+  distanceM: number;
+  shape: ShapePoint[];
+}
+
 interface DeviceStream {
   deviceId: string;
   deviceLabel: string;
   points: StreamPoint[];
-  maxSpeedIn: (segment: FlightSegment) => number;
+  metricsIn: (segment: FlightSegment) => SegmentMetrics;
 }
 
 async function loadStreams(deviceId?: string): Promise<DeviceStream[]> {
@@ -57,8 +86,10 @@ async function loadStreams(deviceId?: string): Promise<DeviceStream[]> {
     device_label: string;
     captured_at: Date;
     speed_mps: number;
+    lat: number;
+    lon: number;
   }>(
-    `SELECT t.device_id, d.label AS device_label, t.captured_at, t.speed_mps
+    `SELECT t.device_id, d.label AS device_label, t.captured_at, t.speed_mps, t.lat, t.lon
      FROM telemetry t
      JOIN devices d ON d.id = t.device_id
      ${deviceId ? "WHERE t.device_id = $1" : ""}
@@ -66,43 +97,94 @@ async function loadStreams(deviceId?: string): Promise<DeviceStream[]> {
     deviceId ? [deviceId] : []
   );
 
-  const byDevice = new Map<string, { label: string; points: StreamPoint[]; speeds: number[] }>();
+  interface Entry {
+    label: string;
+    points: StreamPoint[];
+    speeds: number[];
+    coords: Array<{ lat: number; lon: number }>;
+  }
+
+  const byDevice = new Map<string, Entry>();
   for (const row of rows) {
     let entry = byDevice.get(row.device_id);
     if (!entry) {
-      entry = { label: row.device_label, points: [], speeds: [] };
+      entry = { label: row.device_label, points: [], speeds: [], coords: [] };
       byDevice.set(row.device_id, entry);
     }
     entry.points.push({ atMillis: row.captured_at.getTime(), speedMps: Number(row.speed_mps) });
     entry.speeds.push(Number(row.speed_mps));
+    entry.coords.push({ lat: Number(row.lat), lon: Number(row.lon) });
   }
 
   return [...byDevice.entries()].map(([id, entry]) => ({
     deviceId: id,
     deviceLabel: entry.label,
     points: entry.points,
-    maxSpeedIn: (segment) => {
-      let max = 0;
+    // One walk of the window for every figure the index needs. Coordinates are read here rather
+    // than measured in SQL so that distance stays the one tested implementation in
+    // flightSegmentation, for the same reason segmentation itself is not expressed in SQL.
+    metricsIn: (segment) => {
+      let maxSpeedMps = 0;
+      const coords: Array<{ lat: number; lon: number }> = [];
+
       for (let i = 0; i < entry.points.length; i++) {
         const at = entry.points[i].atMillis;
         if (at < segment.startedAtMillis) continue;
         if (at > segment.endedAtMillis) break;
-        if (entry.speeds[i] > max) max = entry.speeds[i];
+        if (entry.speeds[i] > maxSpeedMps) maxSpeedMps = entry.speeds[i];
+        coords.push(entry.coords[i]);
       }
-      return max;
+
+      return {
+        maxSpeedMps,
+        distanceM: trackDistanceMetres(coords),
+        shape: trackShape(coords, SHAPE_POINTS),
+      };
     },
   }));
 }
 
 function toSummary(stream: DeviceStream, segment: FlightSegment): FlightSummary {
+  const metrics = stream.metricsIn(segment);
+
   return {
     deviceId: stream.deviceId,
     deviceLabel: stream.deviceLabel,
     startedAt: new Date(segment.startedAtMillis),
     endedAt: new Date(segment.endedAtMillis),
     packetCount: segment.packetCount,
-    maxSpeedMps: stream.maxSpeedIn(segment),
+    maxSpeedMps: metrics.maxSpeedMps,
+    distanceM: metrics.distanceM,
+    shape: metrics.shape,
   };
+}
+
+/**
+ * Every registered device with its last packet, including devices that have never sent one.
+ *
+ * A LEFT JOIN rather than a scan of telemetry: the whole point is to surface a device that is
+ * silent, and a silent device has no telemetry rows to be found in.
+ */
+export async function listDeviceStatus(): Promise<DeviceStatus[]> {
+  const { rows } = await getPool().query<{
+    id: string;
+    label: string;
+    last_seen: Date | null;
+    packet_count: string;
+  }>(
+    `SELECT d.id, d.label, MAX(t.captured_at) AS last_seen, COUNT(t.id) AS packet_count
+     FROM devices d
+     LEFT JOIN telemetry t ON t.device_id = d.id
+     GROUP BY d.id, d.label
+     ORDER BY d.label ASC`
+  );
+
+  return rows.map((r) => ({
+    deviceId: r.id,
+    deviceLabel: r.label,
+    lastSeenAt: r.last_seen,
+    packetCount: Number(r.packet_count),
+  }));
 }
 
 /** Every flight across every device, newest first. */

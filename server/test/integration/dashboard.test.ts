@@ -110,6 +110,36 @@ describe.skipIf(!DATABASE_URL)("flight dashboard (integration)", () => {
     });
   });
 
+  describe("GET /", () => {
+    it("renders the index as a logbook of ruled rows", async () => {
+      const res = await request(app).get("/");
+
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('class="rows-head"');
+      expect(res.text).toContain('class="entry"');
+      expect(res.text).toContain("glyph-line");
+    });
+
+    it("lists every registered device, including the one that never flew", async () => {
+      // The parked device produces no flight at all, so a flights-only page would hide it. That is
+      // the exact shape of this project's one unfixable risk: a killed service reports nothing.
+      const res = await request(app).get("/");
+
+      expect(res.text).toContain("Dashboard Test Aircraft");
+      expect(res.text).toContain("Dashboard Test Parked");
+    });
+
+    it("measures each flight's distance from real rows", async () => {
+      // The fixture walks 0.001 degrees of latitude per packet, so a 15-packet run is well over a
+      // kilometre and cannot pass by rendering a zero.
+      const res = await request(app).get("/api/flights");
+      const ours = ourFlights(res.body) as Array<never & { distance_m: number }>;
+
+      expect(ours).not.toHaveLength(0);
+      for (const flight of ours) expect(flight.distance_m).toBeGreaterThan(1000);
+    });
+  });
+
   describe("GET /flights/:deviceId/:at", () => {
     it("renders a map page for a real flight", async () => {
       const list = await request(app).get("/api/flights");
