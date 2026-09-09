@@ -260,6 +260,9 @@ function ledgerRow(f: FlightSummary): string {
           <span class="cell cell--num cell--faint">${escapeHtml(
             f.packetCount.toLocaleString("es-AR")
           )}<span class="u">pt</span></span>
+          <span class="cell cell--num stat-warn">${escapeHtml(
+            Math.round(toFeet(f.maxElevM))
+          )}<span class="u">ft máx</span></span>
         </span>
       </a>
     </li>`;
@@ -337,6 +340,9 @@ function openEntry(f: FlightSummary, state: LeadState, nowMillis: number): strin
           <span class="cell cell--num cell--faint">${escapeHtml(
             f.packetCount.toLocaleString("es-AR")
           )}<span class="u">pt</span></span>
+          <span class="cell cell--num stat-warn">${escapeHtml(
+            Math.round(toFeet(f.maxElevM))
+          )}<span class="u">ft máx</span></span>
         </span>
       </a>
     </section>`;
@@ -461,6 +467,7 @@ export function flightListPage(index: FlightIndex): string {
       <span class="cell-nums">
         <span class="cell--num">Dur.</span><span class="cell--num">NM</span>
         <span class="cell--num">GS máx</span><span class="cell--num">Puntos</span>
+        <span class="cell--num stat-warn">ELEV máx</span>
       </span>
     </div>`;
 
@@ -554,14 +561,9 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
   const medianAccuracy = accuracies.length
     ? [...accuracies].sort((a, b) => a - b)[Math.floor(accuracies.length / 2)]
     : 0;
-  // A loop, not `Math.max(...elevations)`: a long flight at 1 Hz is tens of thousands of points, and
-  // spreading that into a call is an argument list the engine is entitled to refuse.
-  let maxElevM = 0;
-  let minElevM = 0;
-  points.forEach((p, i) => {
-    if (i === 0 || p.altitudeM > maxElevM) maxElevM = p.altitudeM;
-    if (i === 0 || p.altitudeM < minElevM) minElevM = p.altitudeM;
-  });
+  // Read off the summary rather than recomputed here. The index shows the same figure, and two
+  // walks of the same rows are two chances to disagree about one flight's elevation.
+  const { maxElevM, minElevM } = flight;
 
   const stats = `
     <div class="stats">

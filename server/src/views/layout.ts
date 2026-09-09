@@ -23,8 +23,10 @@ const STYLES = `
     --header-bg: ${HEADER.bg};
     --header-ink: ${HEADER.ink};
     --header-link: ${HEADER.link};
-    /* The logbook's numeric columns: duration, distance, top speed, packet count. */
-    --nums: 3.2rem 3.4rem 3.6rem 4.4rem;
+    /* The logbook's numeric columns: duration, distance, top speed, packet count, top elevation.
+       The last one is rendered in warnInk everywhere it appears, header included, because what
+       that number is worth is not the same as what the four beside it are worth. */
+    --nums: 3.2rem 3.4rem 3.6rem 4.4rem 5.2rem;
   }
   /* Only the tokens change between themes. Every rule below reads them, so no colour is stated
      twice and none can drift out of the contrast the palette was measured for. */
@@ -357,7 +359,7 @@ const STYLES = `
     .cell-nums {
       grid-column: 2 / -1;
       grid-row: 2;
-      grid-template-columns: repeat(4, auto);
+      grid-template-columns: repeat(5, auto);
       justify-content: start;
       gap: 0 18px;
     }
@@ -374,7 +376,7 @@ const STYLES = `
       grid-row: 3;
       grid-column: 1 / -1;
       text-align: left;
-      grid-template-columns: repeat(4, auto);
+      grid-template-columns: repeat(5, auto);
       justify-content: start;
       gap: 0 22px;
     }

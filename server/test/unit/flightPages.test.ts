@@ -40,6 +40,8 @@ function summaryFor(points: TrackPoint[]): FlightSummary {
     // Computed with the real helpers rather than hardcoded, so the fixture cannot drift from what
     // the repository would actually hand the view.
     distanceM: trackDistanceMetres(points),
+    maxElevM: Math.max(...points.map((p) => p.altitudeM)),
+    minElevM: Math.min(...points.map((p) => p.altitudeM)),
     shape: trackShape(points, 32),
   };
 }
@@ -698,6 +700,25 @@ describe("flightListPage", () => {
     // per-cell chip has to say the speed is a maximum on its own.
     expect(html).toContain(">GS máx<");
     expect(html).toContain(">kt máx<");
+  });
+
+  it("carries the elevation on the index, in the colour that qualifies it", () => {
+    // The operator asked for the altitude. It is on the ledger and on the open line, in feet, and
+    // in warnInk everywhere it appears - including its own column header - because what that
+    // figure is worth is not what the four beside it are worth.
+    const points = track(60, () => 45);
+    points[30].altitudeM = 920;
+
+    const html = flightListPage({
+      flights: [{ ...summaryFor(points), startedAt: new Date(NOW - 3_600_000), endedAt: new Date(NOW - 60_000) }],
+      devices: [],
+      nowMillis: NOW,
+    });
+
+    expect(html).toContain(`class="cell--num stat-warn">ELEV máx<`);
+    expect(html).toContain(">ft máx<");
+    // 920 m is 3018 ft.
+    expect(html).toContain(">3018<");
     // 45 m/s is 87 kt, and the ledger carries the bare numeral under its heading.
     expect(html).toContain(">87<");
   });

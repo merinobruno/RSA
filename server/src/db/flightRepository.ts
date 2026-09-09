@@ -38,6 +38,15 @@ export interface FlightSummary {
   maxSpeedMps: number;
   /** Summed along the track. One definition, so the index and the flight page cannot disagree. */
   distanceM: number;
+  /**
+   * The highest and lowest elevation recorded, in metres above the WGS84 ellipsoid.
+   *
+   * Carried on the summary so the index can show it without loading a whole track, and so the
+   * flight page reads the same number rather than recomputing its own. What the value is worth is
+   * a separate question the views answer in how they render it - see PRODUCT.md.
+   */
+  maxElevM: number;
+  minElevM: number;
   /** The track reduced to a drawable outline in a unit box. Empty below two fixes. */
   shape: ShapePoint[];
 }
@@ -69,6 +78,8 @@ export interface TrackPoint {
 interface SegmentMetrics {
   maxSpeedMps: number;
   distanceM: number;
+  maxElevM: number;
+  minElevM: number;
   shape: ShapePoint[];
 }
 
@@ -87,8 +98,10 @@ async function loadStreams(deviceId?: string): Promise<DeviceStream[]> {
     speed_mps: number;
     lat: number;
     lon: number;
+    altitude_m: number;
   }>(
-    `SELECT t.device_id, d.label AS device_label, t.captured_at, t.speed_mps, t.lat, t.lon
+    `SELECT t.device_id, d.label AS device_label, t.captured_at, t.speed_mps,
+            t.lat, t.lon, t.altitude_m
      FROM telemetry t
      JOIN devices d ON d.id = t.device_id
      ${deviceId ? "WHERE t.device_id = $1" : ""}
@@ -101,18 +114,20 @@ async function loadStreams(deviceId?: string): Promise<DeviceStream[]> {
     points: StreamPoint[];
     speeds: number[];
     coords: Array<{ lat: number; lon: number }>;
+    elevations: number[];
   }
 
   const byDevice = new Map<string, Entry>();
   for (const row of rows) {
     let entry = byDevice.get(row.device_id);
     if (!entry) {
-      entry = { label: row.device_label, points: [], speeds: [], coords: [] };
+      entry = { label: row.device_label, points: [], speeds: [], coords: [], elevations: [] };
       byDevice.set(row.device_id, entry);
     }
     entry.points.push({ atMillis: row.captured_at.getTime(), speedMps: Number(row.speed_mps) });
     entry.speeds.push(Number(row.speed_mps));
     entry.coords.push({ lat: Number(row.lat), lon: Number(row.lon) });
+    entry.elevations.push(Number(row.altitude_m));
   }
 
   return [...byDevice.entries()].map(([id, entry]) => ({
@@ -125,18 +140,26 @@ async function loadStreams(deviceId?: string): Promise<DeviceStream[]> {
     metricsIn: (segment) => {
       let maxSpeedMps = 0;
       const coords: Array<{ lat: number; lon: number }> = [];
+      let maxElevM = -Infinity;
+      let minElevM = Infinity;
 
       for (let i = 0; i < entry.points.length; i++) {
         const at = entry.points[i].atMillis;
         if (at < segment.startedAtMillis) continue;
         if (at > segment.endedAtMillis) break;
         if (entry.speeds[i] > maxSpeedMps) maxSpeedMps = entry.speeds[i];
+        if (entry.elevations[i] > maxElevM) maxElevM = entry.elevations[i];
+        if (entry.elevations[i] < minElevM) minElevM = entry.elevations[i];
         coords.push(entry.coords[i]);
       }
 
       return {
         maxSpeedMps,
         distanceM: trackDistanceMetres(coords),
+        // Zero rather than Infinity for a window that turned out to hold nothing, so a caller
+        // never has to guard against a sentinel leaking into a rendered figure.
+        maxElevM: Number.isFinite(maxElevM) ? maxElevM : 0,
+        minElevM: Number.isFinite(minElevM) ? minElevM : 0,
         shape: trackShape(coords, SHAPE_POINTS),
       };
     },
@@ -154,6 +177,8 @@ function toSummary(stream: DeviceStream, segment: FlightSegment): FlightSummary 
     packetCount: segment.packetCount,
     maxSpeedMps: metrics.maxSpeedMps,
     distanceM: metrics.distanceM,
+    maxElevM: metrics.maxElevM,
+    minElevM: metrics.minElevM,
     shape: metrics.shape,
   };
 }
