@@ -1,5 +1,5 @@
 import { escapeHtml, page } from "./layout";
-import { SPEED_RAMP, bandColour, bandSpeedBoundsKt } from "./theme";
+import { MAX_FROZEN_OPACITY, SPEED_RAMP, bandColour, bandSpeedBoundsKt } from "./theme";
 import type { FlightSummary, TrackPoint } from "../db/flightRepository";
 import { trackDistanceMetres } from "../services/flightSegmentation";
 import { SPEED_BAND_COUNT, bandTrack } from "../services/trackBanding";
@@ -142,9 +142,14 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
   const medianAccuracy = accuracies.length
     ? [...accuracies].sort((a, b) => a - b)[Math.floor(accuracies.length / 2)]
     : 0;
-  const elevations = points.map((p) => p.altitudeM);
-  const maxElevM = elevations.length ? Math.max(...elevations) : 0;
-  const minElevM = elevations.length ? Math.min(...elevations) : 0;
+  // A loop, not `Math.max(...elevations)`: a long flight at 1 Hz is tens of thousands of points, and
+  // spreading that into a call is an argument list the engine is entitled to refuse.
+  let maxElevM = 0;
+  let minElevM = 0;
+  points.forEach((p, i) => {
+    if (i === 0 || p.altitudeM > maxElevM) maxElevM = p.altitudeM;
+    if (i === 0 || p.altitudeM < minElevM) minElevM = p.altitudeM;
+  });
 
   const stats = `
     <div class="stats">
@@ -250,7 +255,7 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
     .map(
       (c) =>
         `<rect class="profile-frozen" fill-opacity="${escapeHtml(
-          (c.frozenFraction * 0.55).toFixed(3)
+          (c.frozenFraction * MAX_FROZEN_OPACITY).toFixed(3)
         )}" x="${escapeHtml(c.x)}" y="0" width="1" height="${escapeHtml(PROFILE_HEIGHT)}"/>`
     )
     .join("");
@@ -336,8 +341,12 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
       estando quieto — con el GPS declarando ±15 m de error. Sigue el terreno, que en tierra es
       indistinguible de la altura real y deja de serlo apenas el avión despega. Por eso el perfil se
       dibuja con esa evidencia encima: donde el valor repite el del fix anterior, la franja está
-      sombreada. En tierra eso cubre casi todo el recorrido. Si en un vuelo real esas marcas
-      desaparecen, el número es una medición y no un modelo de terreno.
+      sombreada. Quieto en tierra esa marca dice algo, porque un modelo de terreno consultado desde el
+      mismo punto devuelve siempre lo mismo, y ahí cubre casi todo el recorrido.
+      En vuelo no dice nada: a 40 m/s el avión recorre 40 m entre fixes, así que un modelo de terreno
+      también cambia de valor y las marcas desaparecen igual. Lo que decide en el aire es la forma del
+      perfil: si mientras el avión trepa la traza se queda en la elevación del campo, es terreno; si
+      acompaña la trepada, es una medición.
     </div>
     <script>
       var flight = ${flightPayload(points)};

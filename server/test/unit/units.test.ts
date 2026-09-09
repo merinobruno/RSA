@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   KNOTS_PER_MPS,
-  formatFeet,
   formatKnots,
   formatNauticalMiles,
   toFeet,
@@ -33,16 +32,6 @@ describe("aviation units", () => {
     // the receiver does not have.
     expect(formatKnots(45)).toBe("87 kt");
     expect(formatKnots(0)).toBe("0 kt");
-  });
-
-  it("states elevation in whole feet without rounding to an altimeter's steps", () => {
-    // 300 m is 984.25 ft. Rounding to the nearest 10 or 20 ft the way an altimeter face does would
-    // conceal the 0.1 m quantisation this dashboard exists to expose.
-    expect(formatFeet(300)).toBe("984 ft");
-  });
-
-  it("keeps elevation below the ellipsoid negative rather than clamping it", () => {
-    expect(formatFeet(-30.48)).toBe("-100 ft");
   });
 
   it("states distance in nautical miles to one decimal", () => {

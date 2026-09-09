@@ -378,6 +378,23 @@ describe("flightDetailPage", () => {
     expect(html).not.toContain("no se grafica");
     expect(html).toContain("sombreada");
   });
+
+  it("does not offer the absence of shading as proof the elevation can be trusted", () => {
+    // Frozen samples need a terrain source AND near-zero displacement between fixes. In flight only
+    // the second condition fails, so the marks vanish whatever the source is. An operator reading
+    // their absence as a verdict would be over-trusting exactly what this page exists to warn
+    // about, so the copy has to name the real in-flight discriminator: the shape of the trace
+    // against field elevation while the aircraft climbs.
+    const points = track(10);
+
+    const html = flightDetailPage(summaryFor(points), points);
+    const warning = /<div class="warning">([\s\S]*?)<\/div>/.exec(html);
+
+    expect(warning).not.toBeNull();
+    expect(warning![1]).toContain("sombreada");
+    expect(warning![1]).toContain("En vuelo no dice nada");
+    expect(warning![1]).toContain("trepa");
+  });
 });
 
 describe("flightListPage", () => {

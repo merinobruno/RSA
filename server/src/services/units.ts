@@ -26,6 +26,13 @@ export function toKnots(metresPerSecond: number): number {
   return metresPerSecond * KNOTS_PER_MPS;
 }
 
+/**
+ * Metres to feet.
+ *
+ * Callers render whole feet and deliberately do NOT round to the nearest 10 or 20 ft the way an
+ * altimeter face reads: that rounding would hide the 0.1 m quantisation the elevation profile
+ * exists to show.
+ */
 export function toFeet(metres: number): number {
   return metres / METRES_PER_FOOT;
 }
@@ -37,14 +44,6 @@ export function toNauticalMiles(metres: number): number {
 /** Whole knots. A decimal would imply a precision the receiver does not have. */
 export function formatKnots(metresPerSecond: number): string {
   return `${Math.round(toKnots(metresPerSecond))} kt`;
-}
-
-/**
- * Whole feet, and deliberately NOT rounded to the nearest 10 or 20 ft the way an altimeter face
- * reads. That rounding would hide the 0.1 m quantisation the elevation profile exists to show.
- */
-export function formatFeet(metres: number): string {
-  return `${Math.round(toFeet(metres))} ft`;
 }
 
 export function formatNauticalMiles(metres: number): string {

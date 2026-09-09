@@ -99,6 +99,15 @@ export const SPEED_RAMP = [
   "#d41111",
 ] as const;
 
+/**
+ * The strongest the elevation profile ever paints a frozen column.
+ *
+ * Here rather than in the view because the contrast the palette is measured for depends on it: the
+ * shading is never seen at full strength, so the guard has to composite at exactly the value that
+ * ships. Raising this past 0.59 drops the dark theme's trace-on-shading below the 3:1 floor.
+ */
+export const MAX_FROZEN_OPACITY = 0.55;
+
 export function bandColour(band: number): string {
   const index = Math.min(Math.max(Math.round(band), 0), SPEED_RAMP.length - 1);
   return SPEED_RAMP[index];

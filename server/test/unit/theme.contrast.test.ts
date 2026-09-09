@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DARK, HEADER, LIGHT, type Palette } from "../../src/views/theme";
+import { DARK, HEADER, LIGHT, MAX_FROZEN_OPACITY, type Palette } from "../../src/views/theme";
 
 /**
  * WCAG 2.1 relative luminance and contrast ratio, straight from the spec.
@@ -28,9 +28,6 @@ function contrastRatio(a: string, b: string): number {
 const TEXT_MINIMUM = 4.5;
 /** WCAG AA, non-text UI: borders, focus rings, markers. */
 const UI_MINIMUM = 3;
-
-/** The strongest the profile ever paints a frozen column. Task 5 renders at this opacity. */
-const MAX_FROZEN_OPACITY = 0.55;
 
 /**
  * A floor for "perceptible as a tint", not a WCAG threshold - the spec sets none for a shaded
