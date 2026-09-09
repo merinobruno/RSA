@@ -1308,10 +1308,21 @@ Replace the body's `${stats}` through the closing `</div>` of the warning (lines
       estando quieto — con el GPS declarando ±15 m de error. Sigue el terreno, que en tierra es
       indistinguible de la altura real y deja de serlo apenas el avión despega. Por eso el perfil se
       dibuja con esa evidencia encima: donde el valor repite el del fix anterior, la franja está
-      sombreada. En tierra eso cubre casi todo el recorrido. Si en un vuelo real esas marcas
-      desaparecen, el número es una medición y no un modelo de terreno.
+      sombreada. Quieto en tierra esa marca dice algo, porque un modelo de terreno consultado desde
+      el mismo punto devuelve siempre lo mismo, y ahí cubre casi todo el recorrido. En vuelo no dice
+      nada: a 40 m/s el avión recorre 40 m entre fixes, así que un modelo de terreno también cambia
+      de valor y las marcas desaparecen igual. Lo que decide en el aire es la forma del perfil: si
+      mientras el avión trepa la traza se queda en la elevación del campo, es terreno; si acompaña
+      la trepada, es una medición.
     </div>
 ```
+
+The closing must not offer the absence of marks as a verdict. An earlier draft
+of this plan did, and it was wrong in the one direction that matters: an
+operator would have read an unshaded in-flight profile as proof the elevation
+could be trusted. Frozen samples require both a terrain source *and* near-zero
+displacement between fixes; in flight only the second condition fails, so the
+marks vanish whatever the source is.
 
 - [ ] **Step 6: Move the cursor from the existing readout funnel**
 
@@ -1492,3 +1503,39 @@ git commit -m "test(server): assert the elevation profile renders from real tele
 - `cd server && npx tsc --noEmit` is clean.
 - The flight page shows six stat tiles, a knots legend, a vertical profile with shaded frozen bands, and a readout with Hora / GS / TRK / ELEV GPS.
 - No string `km/h` remains outside the three `.stat-metric` spans; no string `no se grafica` remains anywhere.
+
+---
+
+## Post-review corrections
+
+The whole-branch review found two Important issues after Task 6. Both are fixed
+in a single follow-up commit; this section is the record of what changed and why,
+since the task sections above describe the state before it.
+
+**1. The shipped shading opacity was not the one the contrast guard measured.**
+`flightPages.ts` rendered `frozenFraction * 0.55` as a bare literal while
+`theme.contrast.test.ts` declared its own file-private `MAX_FROZEN_OPACITY = 0.55`.
+Nothing linked them, so raising the rendered value to make the warning louder
+would silently break the accessibility floor the test certifies — measured break
+point 0.59, four points of opacity away, with the guard still green.
+`MAX_FROZEN_OPACITY` now lives in `theme.ts` beside the token it modulates, and
+both the view and the test import it.
+
+**2. The warning's closing claim was invalid.** See the rewritten copy above.
+The design document's "Why" and "The warning is rewritten" sections carry the
+corrected reasoning.
+
+**Also folded in, from the review's Minor findings:**
+
+- `formatFeet` was exported and unit-tested but called from nowhere, while
+  whole-feet formatting was written out by hand in the stat tile. The tile now
+  uses it — one definition per unit, which every other unit already had.
+- `Math.max(...elevations)` spread the whole track into an argument list, which
+  throws `RangeError` past roughly 124,000 arguments — about 34 hours at 1 Hz,
+  reachable by a phone left recording in a moving vehicle, since `findTrack`
+  applies no `LIMIT`. Replaced with a single loop computing both bounds, the
+  same reason `trackBanding.ts:37-42` already avoids the spread.
+- `package.json`'s `test:unit` script was the unwrapped `vitest run` that fails
+  with `ECONNREFUSED :5432`, which is the footgun this plan documented rather
+  than fixed. It now wraps with `scripts/with-postgres.mjs`, exactly as `test`
+  already does.

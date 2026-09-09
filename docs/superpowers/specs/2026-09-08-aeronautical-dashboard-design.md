@@ -30,12 +30,33 @@ altitude" are the same number by construction. The test that disqualified
 altitude is the one test that cannot distinguish it. Nothing in this database
 has ever left the ground.
 
-So altitude is graphed, in the one form that settles the question: with the
-frozen samples marked on the trace itself. On ground data the shading covers
-most of the flight — the warning made visible instead of merely asserted. If
-those marks fall silent on a real flight, the value is a measurement and not a
-terrain model. The chart is the experiment, not the claim, and it delivers its
-verdict with no further code change.
+So altitude is graphed, with its own evidence attached: the frozen samples are
+marked on the trace itself. On ground data the shading covers most of the
+flight — the warning made visible instead of merely asserted.
+
+**What the shading can and cannot settle, precisely**, because an earlier draft
+of this document got it wrong and the page repeated the error:
+
+A sample is frozen when it exactly equals its predecessor. That happens when the
+source is a terrain lookup *and* the receiver barely moved between fixes.
+Stationary, the displacement is zero, so a terrain model repeats by
+construction — which is what produced the 63% and what makes the mark
+informative there. **In flight it settles nothing.** At 40 m/s the aircraft
+covers 40 m between 1 Hz fixes, so a terrain model of any resolution finer than
+that returns a different value every fix and the marks vanish — under both
+hypotheses. "The marks disappeared, so it is a measurement" is not an inference
+the data supports, and telling an operator otherwise would produce exactly the
+over-trust this whole feature exists to prevent.
+
+The discriminator in flight is the **envelope's shape**, which the chart already
+draws. A terrain lookup stays pinned near field elevation while the aircraft
+climbs; a real vertical solution follows the climb. Min/max per column shows
+that at a glance, and no code change is needed to read it.
+
+Both halves survive because flight segmentation keeps stationary stretches
+shorter than the gap threshold inside the flight: run-up and holds stay on the
+same page as the climb, so the shading that means something and the shape that
+decides are read together.
 
 ## Decisions
 
@@ -249,11 +270,18 @@ This is the most important copy in the feature. The evidence stays verbatim: the
 that never moved, the declared ±15 m, the terrain that is indistinguishable from
 real altitude until the aircraft leaves it.
 
-What changes is the closing sentence. `Por eso no se grafica` becomes an
-explanation of the shading: where the value repeats fix to fix the band is
-shaded, on the ground that covers nearly the whole track, and **if those marks
-disappear on a real flight then the number is a measurement rather than a
-terrain model.**
+What changes is the closing. `Por eso no se grafica` becomes an explanation of
+what the shading is and, just as importantly, what it is not evidence of: where
+the value repeats fix to fix the band is shaded; stationary that mark means
+something, because a terrain model queried from one spot repeats by
+construction; **in flight it means nothing, because an aircraft covers 40 m
+between fixes and a terrain model changes value too**; and the thing that
+actually decides in the air is whether the trace stays at field elevation while
+the aircraft climbs or follows it up.
+
+The copy must not offer the absence of marks as a verdict. That sentence is the
+one place on this page where a wrong inference would be actively harmful, since
+it is the sentence an operator would apply on their first real flight.
 
 ## Out of scope
 
