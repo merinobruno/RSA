@@ -100,6 +100,21 @@ accounts, iOS, an admin panel for device registration, a user-configurable send
 interval, vertical speed, and accelerometer load factor. **(inferred)** Naming
 or editing flights by hand.
 
+**Barometric altitude, declined 2026-09-09.** A pressure sensor
+(`Sensor.TYPE_PRESSURE`) would be the honest altitude source — absolute, free of
+drift, indifferent to the phone's orientation, and the same quantity an aircraft
+altimeter reads — and it was raised for exactly that reason. The operator
+declined it on hardware grounds: barometers are common in flagship phones and
+uncommon in the cheap ones this fleet is built on, so designing around a sensor
+most of the fleet will not have buys nothing. **GPS elevation, as it comes, is
+the decision.**
+
+The consequence is not a gap to fill later but a constraint already honoured:
+the elevation is shown with its own evidence attached rather than trusted, and
+the only remaining way to learn what the value is worth is the shape of the
+profile on a real flight — whether the trace follows a climb or stays at field
+elevation. Do not re-propose the barometer without new hardware.
+
 Knowing whether a flight is *currently in progress* is in scope and is derived
 from packet recency, not from a live channel.
 
