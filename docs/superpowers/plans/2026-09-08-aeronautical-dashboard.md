@@ -1583,11 +1583,21 @@ describe("frozenBands", () => {
 
   it("collapses a wholly frozen track into one band", () => {
     // The ground case, and the one that matters: 720 rects for a picture of one rectangle.
-    const columns = profileColumns(samples(720), 720);
+    // Two samples per column, so every column - the first included - has a comparison to make.
+    const columns = profileColumns(samples(1440), 720);
 
     const bands = frozenBands(columns, OPACITY);
 
     expect(bands).toEqual([{ x: 0, width: 720, opacity: 0.55 }]);
+  });
+
+  it("leaves the opening column unshaded when it holds only the flight's first sample", () => {
+    // profileColumns excludes the very first sample from its own column's denominator, because it
+    // has no predecessor it could be repeating. At one sample per column that leaves column 0 with
+    // nothing compared at all, and a band starting at 0 would be claiming evidence never gathered.
+    const columns = profileColumns(samples(720), 720);
+
+    expect(frozenBands(columns, OPACITY)).toEqual([{ x: 1, width: 719, opacity: 0.55 }]);
   });
 
   it("keeps columns apart when their opacity differs", () => {
