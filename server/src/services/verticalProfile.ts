@@ -97,6 +97,47 @@ export function profileColumns(samples: ProfileSample[], columnCount: number): P
   }));
 }
 
+export interface FrozenBand {
+  /** The first column of the run, and the rect's x in viewBox units. */
+  x: number;
+  /** How many columns the run spans, and the rect's width. */
+  width: number;
+  /** The opacity every column in this run rounds to. Always above 0 and at most `maxOpacity`. */
+  opacity: number;
+}
+
+/**
+ * Collapses runs of equally shaded columns into single bands.
+ *
+ * Not a rendering nicety. One rect per column is 0.46 px on a phone, and sub-pixel rects composite
+ * independently - a row of them renders lighter than the opacity each one declares, which is the
+ * shading going quiet exactly where the reader most needs to see it. It also turns the ground case,
+ * where every column repeats and the whole track shades identically, from 720 rects into one.
+ */
+export function frozenBands(columns: ProfileColumn[], maxOpacity: number): FrozenBand[] {
+  const bands: FrozenBand[] = [];
+
+  for (const column of columns) {
+    // Rounded here rather than at render time, so the value two columns are merged on is exactly
+    // the value the rect ends up carrying. Merging on the raw fraction and rounding afterwards
+    // would leave two visually identical columns as separate rects.
+    const opacity =
+      column.sampleCount > 0 ? Number((column.frozenFraction * maxOpacity).toFixed(3)) : 0;
+    if (opacity <= 0) continue;
+
+    const previous = bands[bands.length - 1];
+    // The x check is what keeps a coverage gap from being bridged: a skipped column leaves the
+    // run's end short of the next column's x, so the two cannot join.
+    if (previous && previous.opacity === opacity && previous.x + previous.width === column.x) {
+      previous.width++;
+    } else {
+      bands.push({ x: column.x, width: 1, opacity });
+    }
+  }
+
+  return bands;
+}
+
 export function profileScale(columns: ProfileColumn[]): ProfileScale {
   let min = Infinity;
   let max = -Infinity;

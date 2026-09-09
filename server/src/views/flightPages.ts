@@ -4,7 +4,7 @@ import type { FlightSummary, TrackPoint } from "../db/flightRepository";
 import { trackDistanceMetres } from "../services/flightSegmentation";
 import { SPEED_BAND_COUNT, bandTrack } from "../services/trackBanding";
 import { KNOTS_PER_MPS, formatKnots, formatNauticalMiles, toFeet } from "../services/units";
-import { profileColumns, profileScale } from "../services/verticalProfile";
+import { frozenBands, profileColumns, profileScale } from "../services/verticalProfile";
 
 /**
  * Every timestamp a human reads in this system is local; every timestamp stored or transmitted is
@@ -248,15 +248,16 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
   const spanFt = scale.maxFt - scale.minFt;
   const yOf = (ft: number): number => ((scale.maxFt - ft) / spanFt) * PROFILE_HEIGHT;
 
-  // Full-height bands behind the trace, tinted by how much of the column repeated. Drawn first so
-  // the trace stays on top of its own caveat rather than under it.
-  const frozenBands = columns
-    .filter((c) => c.sampleCount > 0 && c.frozenFraction > 0)
+  // Full-height bands behind the trace, tinted by how much of the run repeated. Drawn first so the
+  // trace stays on top of its own caveat rather than under it.
+  const shading = frozenBands(columns, MAX_FROZEN_OPACITY)
     .map(
-      (c) =>
+      (b) =>
         `<rect class="profile-frozen" fill-opacity="${escapeHtml(
-          (c.frozenFraction * MAX_FROZEN_OPACITY).toFixed(3)
-        )}" x="${escapeHtml(c.x)}" y="0" width="1" height="${escapeHtml(PROFILE_HEIGHT)}"/>`
+          b.opacity.toFixed(3)
+        )}" x="${escapeHtml(b.x)}" y="0" width="${escapeHtml(b.width)}" height="${escapeHtml(
+          PROFILE_HEIGHT
+        )}"/>`
     )
     .join("");
 
@@ -301,7 +302,7 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
                Math.round(scale.minFt)
              )} a ${escapeHtml(Math.round(scale.maxFt))} pies. Las franjas sombreadas marcan los
              tramos donde el valor registrado repite el del fix anterior.">
-          ${frozenBands}
+          ${shading}
           ${envelope}
           <line class="profile-cursor" id="profile-cursor" vector-effect="non-scaling-stroke"
                 x1="0" y1="0" x2="0" y2="${escapeHtml(PROFILE_HEIGHT)}" hidden/>

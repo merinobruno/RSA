@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MINIMUM_SPAN_FT,
   type ProfileSample,
+  frozenBands,
   profileColumns,
   profileScale,
 } from "../../src/services/verticalProfile";
@@ -157,5 +158,77 @@ describe("profileScale", () => {
     const scale = profileScale([]);
 
     expect(scale.maxFt - scale.minFt).toBe(MINIMUM_SPAN_FT);
+  });
+});
+
+describe("frozenBands", () => {
+  const OPACITY = 0.55;
+
+  it("draws nothing for a track with no shading to place", () => {
+    expect(frozenBands([], OPACITY)).toEqual([]);
+    expect(frozenBands(profileColumns(samples(100, (i) => 300 + i), 10), OPACITY)).toEqual([]);
+  });
+
+  it("collapses a wholly frozen track into one band", () => {
+    // The ground case, and the one that matters: 720 rects for a picture of one rectangle.
+    // Two samples per column, so every column - the first included - has a comparison to make.
+    const columns = profileColumns(samples(1440), 720);
+
+    const bands = frozenBands(columns, OPACITY);
+
+    expect(bands).toEqual([{ x: 0, width: 720, opacity: 0.55 }]);
+  });
+
+  it("leaves the opening column unshaded when it holds only the flight's first sample", () => {
+    // profileColumns excludes the very first sample from its own column's denominator, because it
+    // has no predecessor it could be repeating. At one sample per column that leaves column 0 with
+    // nothing compared at all, and a band starting at 0 would be claiming evidence never gathered.
+    const columns = profileColumns(samples(720), 720);
+
+    expect(frozenBands(columns, OPACITY)).toEqual([{ x: 1, width: 719, opacity: 0.55 }]);
+  });
+
+  it("keeps columns apart when their opacity differs", () => {
+    const columns = [
+      { x: 0, minFt: 0, maxFt: 0, frozenFraction: 1, sampleCount: 10 },
+      { x: 1, minFt: 0, maxFt: 0, frozenFraction: 0.5, sampleCount: 10 },
+      { x: 2, minFt: 0, maxFt: 0, frozenFraction: 1, sampleCount: 10 },
+    ];
+
+    expect(frozenBands(columns, OPACITY)).toEqual([
+      { x: 0, width: 1, opacity: 0.55 },
+      { x: 1, width: 1, opacity: 0.275 },
+      { x: 2, width: 1, opacity: 0.55 },
+    ]);
+  });
+
+  it("does not merge across a coverage gap", () => {
+    // A gap is a column with nothing in it. Bridging it would shade a stretch nobody recorded.
+    const columns = [
+      { x: 0, minFt: 0, maxFt: 0, frozenFraction: 1, sampleCount: 10 },
+      { x: 1, minFt: 0, maxFt: 0, frozenFraction: 0, sampleCount: 0 },
+      { x: 2, minFt: 0, maxFt: 0, frozenFraction: 1, sampleCount: 10 },
+    ];
+
+    expect(frozenBands(columns, OPACITY)).toEqual([
+      { x: 0, width: 1, opacity: 0.55 },
+      { x: 2, width: 1, opacity: 0.55 },
+    ]);
+  });
+
+  it("drops a fraction too small to tint anything", () => {
+    // One frozen sample in ten thousand rounds to 0.000: a rect that paints nothing and still costs
+    // a DOM node.
+    const columns = [{ x: 0, minFt: 0, maxFt: 0, frozenFraction: 0.0001, sampleCount: 10000 }];
+
+    expect(frozenBands(columns, OPACITY)).toEqual([]);
+  });
+
+  it("never exceeds the opacity it was given", () => {
+    const columns = profileColumns(samples(50), 10);
+
+    for (const band of frozenBands(columns, OPACITY)) {
+      expect(band.opacity).toBeLessThanOrEqual(OPACITY);
+    }
   });
 });

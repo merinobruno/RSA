@@ -379,6 +379,19 @@ describe("flightDetailPage", () => {
     expect(html).toContain("sombreada");
   });
 
+  it("paints a wholly frozen track as one band rather than one rect per column", () => {
+    // Sub-pixel rects composite independently, so a row of 0.46 px neighbours renders lighter than
+    // the opacity the contrast test certifies. On a phone that is the shading - the evidence -
+    // quietly fading out.
+    const points = track(600);
+
+    const html = flightDetailPage(summaryFor(points), points);
+    const shading = html.match(/class="profile-frozen"/g) ?? [];
+
+    expect(shading).toHaveLength(1);
+    expect(html).toContain('fill-opacity="0.550"');
+  });
+
   it("does not offer the absence of shading as proof the elevation can be trusted", () => {
     // Frozen samples need a terrain source AND near-zero displacement between fixes. In flight only
     // the second condition fails, so the marks vanish whatever the source is. An operator reading
