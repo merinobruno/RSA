@@ -391,9 +391,14 @@ describe("flightDetailPage", () => {
     const warning = /<div class="warning">([\s\S]*?)<\/div>/.exec(html);
 
     expect(warning).not.toBeNull();
-    expect(warning![1]).toContain("sombreada");
-    expect(warning![1]).toContain("En vuelo no dice nada");
-    expect(warning![1]).toContain("trepa");
+    // Whitespace collapsed first: the copy is wrapped across source lines, and where those breaks
+    // fall is not a requirement. Asserting the raw string makes reflowing the paragraph fail the
+    // test for a reason that has nothing to do with what it is checking.
+    const claim = warning![1].replace(/\s+/g, " ");
+
+    expect(claim).toContain("sombreada");
+    expect(claim).toContain("En vuelo no dice nada");
+    expect(claim).toContain("trepa");
   });
 });
 
