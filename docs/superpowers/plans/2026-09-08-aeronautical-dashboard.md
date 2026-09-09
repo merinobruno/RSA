@@ -1539,3 +1539,211 @@ corrected reasoning.
   with `ECONNREFUSED :5432`, which is the footgun this plan documented rather
   than fixed. It now wraps with `scripts/with-postgres.mjs`, exactly as `test`
   already does.
+
+---
+
+### Task 7: Merge contiguous frozen columns into single bands
+
+Added after the whole-branch review, which found this as a Minor and traced it to a real defect on
+the hardware this project targets.
+
+**Files:**
+- Modify: `server/src/services/verticalProfile.ts` (new export)
+- Modify: `server/src/views/flightPages.ts` (the `frozenBands` local in `flightDetailPage`)
+- Test: `server/test/unit/verticalProfile.test.ts`, `server/test/unit/flightPages.test.ts`
+
+**Interfaces:**
+- Consumes: `ProfileColumn` from Task 2, `MAX_FROZEN_OPACITY` from the post-review commit.
+- Produces: `interface FrozenBand { x: number; width: number; opacity: number }` and
+  `frozenBands(columns: ProfileColumn[], maxOpacity: number): FrozenBand[]`.
+
+**Why:** the profile emits one `<rect width="1">` per frozen column. At `PROFILE_COLUMNS = 720` that
+rect is 1.33 px at the page's 960 px maximum, but only 0.46 px on a phone. Sub-pixel rects composite
+independently, so two neighbours each covering half a pixel at 0.55 yield an effective alpha near
+0.48 — the shipped tint is systematically lighter than the ratio `theme.contrast.test.ts` certifies.
+That is the one direction the design calls a serious defect: fainter shading is fainter evidence,
+and a cheap phone is this project's premise rather than an edge case.
+
+Merging also collapses the ground case that matters most. When every column repeats,
+`frozenFraction` is 1 throughout and 720 rects become one.
+
+- [ ] **Step 1: Write the failing tests**
+
+Add to `server/test/unit/verticalProfile.test.ts`, and add `frozenBands` to its existing import
+block:
+
+```ts
+describe("frozenBands", () => {
+  const OPACITY = 0.55;
+
+  it("draws nothing for a track with no shading to place", () => {
+    expect(frozenBands([], OPACITY)).toEqual([]);
+    expect(frozenBands(profileColumns(samples(100, (i) => 300 + i), 10), OPACITY)).toEqual([]);
+  });
+
+  it("collapses a wholly frozen track into one band", () => {
+    // The ground case, and the one that matters: 720 rects for a picture of one rectangle.
+    const columns = profileColumns(samples(720), 720);
+
+    const bands = frozenBands(columns, OPACITY);
+
+    expect(bands).toEqual([{ x: 0, width: 720, opacity: 0.55 }]);
+  });
+
+  it("keeps columns apart when their opacity differs", () => {
+    const columns = [
+      { x: 0, minFt: 0, maxFt: 0, frozenFraction: 1, sampleCount: 10 },
+      { x: 1, minFt: 0, maxFt: 0, frozenFraction: 0.5, sampleCount: 10 },
+      { x: 2, minFt: 0, maxFt: 0, frozenFraction: 1, sampleCount: 10 },
+    ];
+
+    expect(frozenBands(columns, OPACITY)).toEqual([
+      { x: 0, width: 1, opacity: 0.55 },
+      { x: 1, width: 1, opacity: 0.275 },
+      { x: 2, width: 1, opacity: 0.55 },
+    ]);
+  });
+
+  it("does not merge across a coverage gap", () => {
+    // A gap is a column with nothing in it. Bridging it would shade a stretch nobody recorded.
+    const columns = [
+      { x: 0, minFt: 0, maxFt: 0, frozenFraction: 1, sampleCount: 10 },
+      { x: 1, minFt: 0, maxFt: 0, frozenFraction: 0, sampleCount: 0 },
+      { x: 2, minFt: 0, maxFt: 0, frozenFraction: 1, sampleCount: 10 },
+    ];
+
+    expect(frozenBands(columns, OPACITY)).toEqual([
+      { x: 0, width: 1, opacity: 0.55 },
+      { x: 2, width: 1, opacity: 0.55 },
+    ]);
+  });
+
+  it("drops a fraction too small to tint anything", () => {
+    // One frozen sample in ten thousand rounds to 0.000: a rect that paints nothing and still costs
+    // a DOM node.
+    const columns = [{ x: 0, minFt: 0, maxFt: 0, frozenFraction: 0.0001, sampleCount: 10000 }];
+
+    expect(frozenBands(columns, OPACITY)).toEqual([]);
+  });
+
+  it("never exceeds the opacity it was given", () => {
+    const columns = profileColumns(samples(50), 10);
+
+    for (const band of frozenBands(columns, OPACITY)) {
+      expect(band.opacity).toBeLessThanOrEqual(OPACITY);
+    }
+  });
+});
+```
+
+Add to `server/test/unit/flightPages.test.ts`, inside `describe("flightDetailPage", ...)`:
+
+```ts
+  it("paints a wholly frozen track as one band rather than one rect per column", () => {
+    // Sub-pixel rects composite independently, so a row of 0.46 px neighbours renders lighter than
+    // the opacity the contrast test certifies. On a phone that is the shading - the evidence -
+    // quietly fading out.
+    const points = track(600);
+
+    const html = flightDetailPage(summaryFor(points), points);
+    const shading = html.match(/class="profile-frozen"/g) ?? [];
+
+    expect(shading).toHaveLength(1);
+    expect(html).toContain('fill-opacity="0.550"');
+  });
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+```bash
+cd server && node scripts/with-postgres.mjs npx vitest run test/unit/verticalProfile.test.ts test/unit/flightPages.test.ts
+```
+
+Expected: FAIL — `frozenBands` is not exported, and the flight page still emits 600 frozen rects.
+
+- [ ] **Step 3: Add the merge**
+
+In `server/src/services/verticalProfile.ts`:
+
+```ts
+export interface FrozenBand {
+  /** The first column of the run, and the rect's x in viewBox units. */
+  x: number;
+  /** How many columns the run spans, and the rect's width. */
+  width: number;
+  /** The opacity every column in this run rounds to. Always above 0 and at most `maxOpacity`. */
+  opacity: number;
+}
+
+/**
+ * Collapses runs of equally shaded columns into single bands.
+ *
+ * Not a rendering nicety. One rect per column is 0.46 px on a phone, and sub-pixel rects composite
+ * independently - a row of them renders lighter than the opacity each one declares, which is the
+ * shading going quiet exactly where the reader most needs to see it. It also turns the ground case,
+ * where every column repeats and the whole track shades identically, from 720 rects into one.
+ */
+export function frozenBands(columns: ProfileColumn[], maxOpacity: number): FrozenBand[] {
+  const bands: FrozenBand[] = [];
+
+  for (const column of columns) {
+    // Rounded here rather than at render time, so the value two columns are merged on is exactly
+    // the value the rect ends up carrying. Merging on the raw fraction and rounding afterwards
+    // would leave two visually identical columns as separate rects.
+    const opacity =
+      column.sampleCount > 0 ? Number((column.frozenFraction * maxOpacity).toFixed(3)) : 0;
+    if (opacity <= 0) continue;
+
+    const previous = bands[bands.length - 1];
+    // The x check is what keeps a coverage gap from being bridged: a skipped column leaves the
+    // run's end short of the next column's x, so the two cannot join.
+    if (previous && previous.opacity === opacity && previous.x + previous.width === column.x) {
+      previous.width++;
+    } else {
+      bands.push({ x: column.x, width: 1, opacity });
+    }
+  }
+
+  return bands;
+}
+```
+
+- [ ] **Step 4: Render from it**
+
+In `server/src/views/flightPages.ts`, import `frozenBands` alongside `profileColumns` and
+`profileScale`, then replace the `frozenBands` local with:
+
+```ts
+  // Full-height bands behind the trace, tinted by how much of the run repeated. Drawn first so the
+  // trace stays on top of its own caveat rather than under it.
+  const shading = frozenBands(columns, MAX_FROZEN_OPACITY)
+    .map(
+      (b) =>
+        `<rect class="profile-frozen" fill-opacity="${escapeHtml(
+          b.opacity.toFixed(3)
+        )}" x="${escapeHtml(b.x)}" y="0" width="${escapeHtml(b.width)}" height="${escapeHtml(
+          PROFILE_HEIGHT
+        )}"/>`
+    )
+    .join("");
+```
+
+The local is named `shading`, not `frozenBands`, so it does not shadow the function it calls. Update
+the SVG template's interpolation from the old local to `${shading}`.
+
+- [ ] **Step 5: Run the tests to verify they pass**
+
+```bash
+cd server && npm test && npx tsc --noEmit
+```
+
+Expected: PASS, `tsc` clean. The existing assertions on `fill-opacity="0.550"` in
+`flightPages.test.ts` and `dashboard.test.ts` still hold — a merged band carries the same opacity
+string, only a wider rect.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add server/src/services/verticalProfile.ts server/src/views/flightPages.ts server/test/unit/verticalProfile.test.ts server/test/unit/flightPages.test.ts
+git commit -m "fix(server): merge contiguous frozen columns so the shading keeps its strength"
+```
