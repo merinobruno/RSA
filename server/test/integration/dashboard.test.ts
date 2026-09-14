@@ -153,15 +153,17 @@ describe.skipIf(!DATABASE_URL)("flight dashboard (integration)", () => {
       expect(res.text).toContain("leaflet");
     });
 
-    it("says plainly that the altitude cannot be trusted", async () => {
-      // The number is on screen; the caveat has to be too, or the page quietly lends it authority.
+    it("states what the elevation is worth alongside the number", async () => {
+      // The number is on screen; what it is worth has to be too, or the page quietly lends it an
+      // authority it only has in some regimes.
       const list = await request(app).get("/api/flights");
       const flight = ourFlights(list.body)[0] as never & { started_at: string };
 
       const res = await request(app).get(`/flights/${deviceId}/${Date.parse(flight.started_at)}`);
 
       expect(res.text).toContain("altitud");
-      expect(res.text).toContain("no es confiable");
+      expect(res.text).toContain("WGS84");
+      expect(res.text).toContain("sombreada");
     });
 
     it("draws the elevation profile from real rows", async () => {

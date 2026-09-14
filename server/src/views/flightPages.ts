@@ -750,18 +750,20 @@ export function flightDetailPage(flight: FlightSummary, points: TrackPoint[]): s
     ${profile}
     ${inspector}
     <div class="warning">
-      <strong>La altitud de este vuelo no es confiable.</strong>
-      El valor que registra el sistema viene en escalones de 10 cm, resultó idéntico bit a bit entre
-      dos teléfonos distintos en el mismo lugar, y no cambió en el 63% de los fixes consecutivos
-      estando quieto — con el GPS declarando ±15 m de error. Sigue el terreno, que en tierra es
-      indistinguible de la altura real y deja de serlo apenas el avión despega. Por eso el perfil se
-      dibuja con esa evidencia encima: donde el valor repite el del fix anterior, la franja está
-      sombreada. Quieto en tierra esa marca dice algo, porque un modelo de terreno consultado desde el
-      mismo punto devuelve siempre lo mismo, y ahí cubre casi todo el recorrido.
-      En vuelo no dice nada: a 40 m/s el avión recorre 40 m entre fixes, así que un modelo de terreno
-      también cambia de valor y las marcas desaparecen igual. Lo que decide en el aire es la forma del
-      perfil: si mientras el avión trepa la traza se queda en la elevación del campo, es terreno; si
-      acompaña la trepada, es una medición.
+      <strong>Cuánto vale esta altitud.</strong>
+      Es altura sobre el elipsoide WGS84 medida por GPS: no es altitud sobre el nivel del mar ni
+      altitud de presión, y en esta zona la diferencia ronda los 15 m que nada corrige. Eso no
+      cambia nunca y vale para todos los vuelos.
+      Lo que sí cambia es cuánto está midiendo, y depende de la altura. En el salto del 12 de
+      septiembre de 2026 — 1.798 fixes, 2.931 m de rango vertical — por encima de 500 m el valor
+      repitió el del fix anterior en el 2% de los casos con el GPS declarando 5 m de error, y
+      acompañó la trepada entera. Por debajo de 500 m repitió el 30%, con 33 m de error. Quieto en
+      tierra llega al 63%. Las franjas sombreadas del perfil marcan esos tramos: donde el valor
+      repite el del fix anterior, no está midiendo, está sosteniendo el último número que tuvo.
+      Y puede desaparecer del todo. En ese mismo salto el receptor perdió el enganche unos 100
+      segundos desde el lanzamiento, y durante ese hueco informó elevación de campo con 2.351 m de
+      error declarado. Un tramo así se lee en el perfil como un escalón que ninguna aeronave podría
+      volar.
     </div>
     <script>
       var flight = ${flightPayload(points)};

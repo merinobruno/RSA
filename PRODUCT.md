@@ -59,23 +59,50 @@ is verified from a sandbox build.
 
 ## What the altitude is worth
 
-The recorded altitude is **not trustworthy**, and the product says so on
-screen. It arrives in 0.1 m steps, was bit-identical across two different
-phones at the same place, and did not change across 63% of consecutive
-stationary fixes while the receiver declared ±15 m. That signature reads as a
-terrain-model lookup rather than a GNSS vertical solution.
-`Location.getAltitude()` also returns height above the WGS84 ellipsoid, not
-mean sea level, so it is not the altitude a pilot reads even when accurate.
+**Settled by real flight data on 2026-09-12, and the answer is "it depends on
+the regime".** Read this before changing any surface that shows an elevation.
 
-All of that evidence was gathered **on the ground**, where a terrain lookup and
-a real measurement are the same number by construction — so it is suggestive,
-not settled. The dashboard therefore graphs the elevation with the evidence
-attached, and the page states plainly that the absence of frozen-sample marks
-in flight proves nothing; the discriminator in the air is whether the profile
-follows a climb or stays at field elevation.
+Development ran for months on ground data that said the value was worthless: it
+appeared to arrive in 0.1 m steps, was bit-identical across two different phones
+at the same place, and did not change across 63% of consecutive stationary fixes
+while the receiver declared ±15 m. That reads as a terrain-model lookup rather
+than a GNSS vertical solution, and the dashboard was built to withhold trust
+accordingly.
 
-**This is the product's defining honesty commitment.** Any surface that makes a
-number look more authoritative than it is has failed, whatever it looks like.
+Every one of those observations was gathered on the ground, where a terrain
+lookup and a real measurement are the same number by construction. The
+discriminator the design named — does the trace follow a climb or stay at field
+elevation — was then run against a real flight: a skydive out of Allen, 1,798
+fixes, 2,931 m of vertical range.
+
+| Regime | Fixes repeating the previous value | Mean declared accuracy |
+|---|---|---|
+| Above 2,000 m | 2.0% | 6 m |
+| 1,000–2,000 m | 0.6% | 5 m |
+| 500–1,000 m | 1.0% | 5 m |
+| Below 500 m | 30.8% | 33 m |
+| Stationary on the ground | 63% | ±15 m |
+
+**In flight the elevation is a real GNSS measurement.** It tracked the climb
+from 274 m to 3,205 m, changing every second, and the altitude steps in that
+data are 0.01 m across 497 distinct sizes — the 0.1 m quantisation reported from
+ground testing does not appear at all. The original suspicion was correct about
+ground data and wrong as a claim about the sensor.
+
+Three caveats survive and are permanent:
+
+- It is height above the **WGS84 ellipsoid**, not above mean sea level and not
+  pressure altitude. In this region that is roughly a 15 m offset, uncorrected.
+- **Near the ground it degrades badly** and holds its last value, which is what
+  the frozen-sample shading on the profile marks.
+- **It can vanish entirely.** During the jump the receiver lost lock for about
+  100 seconds and reported field elevation with 2,351 m of declared error, which
+  renders as a step no aircraft could fly.
+
+**The honesty commitment is unchanged in kind, only in content.** A surface that
+claims more than the data supports has failed — and as of this flight, so has
+one that claims less. The elevation is still rendered in `warnInk` because it is
+the one figure whose worth is conditional, not because it is junk.
 
 ## Brand commitments
 

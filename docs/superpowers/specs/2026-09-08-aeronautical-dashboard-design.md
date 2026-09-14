@@ -322,3 +322,37 @@ clear the contrast bar in both palettes.
 
 **Integration.** `dashboard.test.ts` renders the flight page against the real
 Postgres the suite already provisions on its own.
+
+---
+
+## Outcome, 2026-09-14
+
+This design's whole argument rested on a discriminator it could not run: whether
+the elevation follows a climb or stays at field elevation. A skydive out of
+Allen on 2026-09-12 ran it, with the phone on the jumper rather than in the
+aircraft.
+
+**The elevation is a real GNSS measurement in flight.** It tracked 274 m to
+3,205 m across 1,798 fixes. Above 500 m it repeated the previous value in 1-2%
+of fixes against 63% sitting still, at 5-6 m declared accuracy, and the altitude
+steps in that data are 0.01 m across 497 distinct sizes — the 0.1 m quantisation
+reported from ground testing does not appear at all.
+
+Below 500 m it still degrades badly — 30.8% repeated, 33 m mean accuracy — and
+during the jump itself the receiver lost lock for about 100 seconds, reporting
+field elevation with 2,351 m of declared error. There is therefore no freefall
+in the data: there is a hole where the freefall should be.
+
+The shading did its job exactly as designed: quiet where the value is real, loud
+where it is not. What changed is the copy. The warning said the value was not
+trustworthy, full stop, and after this flight that overstates the doubt in the
+same way the original refusal to graph it did — only reversed. It now states
+what the elevation is worth by regime, with these measurements behind it, and
+keeps the one caveat no flight can retire: it is height above the WGS84
+ellipsoid, not altitude above mean sea level.
+
+The barometer, raised as the honest alternative source, was declined on hardware
+grounds before this flight and is not revisited: the GPS answer turned out to be
+good enough in the regime that matters.
+
+See PRODUCT.md, "What the altitude is worth", for the durable record.

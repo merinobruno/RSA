@@ -172,12 +172,15 @@ describe("flightDetailPage", () => {
     expect(html).toMatch(/<a class="back" href="\/">[^<]*\S/);
   });
 
-  it("still says plainly that the altitude cannot be trusted", () => {
+  it("states the one caveat about elevation that no flight can retire", () => {
+    // The WGS84 datum. Real flight data retired the claim that the value is unusable, but it did
+    // not turn ellipsoid height into altitude above mean sea level and never will.
     const points = track(10);
 
     const html = flightDetailPage(summaryFor(points), points);
 
-    expect(html).toContain("no es confiable");
+    expect(html).toContain("WGS84");
+    expect(html).toContain("nivel del mar");
     expect(html).not.toContain("altitude_m");
   });
 
@@ -382,12 +385,11 @@ describe("flightDetailPage", () => {
     expect(html.indexOf('class="profile"')).toBeLessThan(html.indexOf('class="inspector"'));
   });
 
-  it("no longer claims the altitude is not graphed, but still says it is not trustworthy", () => {
+  it("explains the shading rather than refusing to graph the elevation at all", () => {
     const points = track(10);
 
     const html = flightDetailPage(summaryFor(points), points);
 
-    expect(html).toContain("no es confiable");
     expect(html).not.toContain("no se grafica");
     expect(html).toContain("sombreada");
   });
@@ -405,12 +407,11 @@ describe("flightDetailPage", () => {
     expect(html).toContain('fill-opacity="0.550"');
   });
 
-  it("does not offer the absence of shading as proof the elevation can be trusted", () => {
-    // Frozen samples need a terrain source AND near-zero displacement between fixes. In flight only
-    // the second condition fails, so the marks vanish whatever the source is. An operator reading
-    // their absence as a verdict would be over-trusting exactly what this page exists to warn
-    // about, so the copy has to name the real in-flight discriminator: the shape of the trace
-    // against field elevation while the aircraft climbs.
+  it("states what the elevation is worth by regime, with the measurements behind it", () => {
+    // Real flight data on 2026-09-12 settled what ground data could not: above 500 m the value
+    // repeated the previous fix 2% of the time against 63% sitting still. The copy has to carry
+    // both halves - a blanket "not trustworthy" is now wrong in the same direction the original
+    // refusal to graph it was, only reversed.
     const points = track(10);
 
     const html = flightDetailPage(summaryFor(points), points);
@@ -423,8 +424,12 @@ describe("flightDetailPage", () => {
     const claim = warning![1].replace(/\s+/g, " ");
 
     expect(claim).toContain("sombreada");
-    expect(claim).toContain("En vuelo no dice nada");
-    expect(claim).toContain("trepa");
+    // The permanent caveat, and the measured regimes that replaced the blanket one.
+    expect(claim).toContain("WGS84");
+    expect(claim).toContain("por encima de 500 m");
+    expect(claim).toContain("63%");
+    // It must no longer tell the reader the number is simply unusable.
+    expect(claim).not.toContain("no es confiable");
   });
 });
 
