@@ -17,8 +17,12 @@ android {
         // 2) Adaptive launcher icons (mipmap-anydpi-v26) need no legacy raster fallback.
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
+
+        // The server a fresh install talks to, so the operator only has to enter the device id and
+        // API key. The Settings screen can still override it.
+        buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://rsa-telemetry-server-production.up.railway.app\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -44,6 +48,7 @@ android {
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 
     testOptions {

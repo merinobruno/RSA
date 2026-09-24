@@ -2,6 +2,7 @@ package com.rsa.telemetry.data
 
 import android.content.Context
 import androidx.core.content.edit
+import com.rsa.telemetry.BuildConfig
 
 /**
  * Operator-configured settings: device id, API key and server base URL, entered once in
@@ -24,8 +25,9 @@ class SettingsRepository(context: Context) {
         get() = prefs.getString(KEY_API_KEY, "") ?: ""
         set(value) = prefs.edit { putString(KEY_API_KEY, value.trim()) }
 
+    /** Falls back to the build's default server; see [ServerUrlResolver] for when and why. */
     var serverBaseUrl: String
-        get() = prefs.getString(KEY_SERVER_URL, "") ?: ""
+        get() = ServerUrlResolver.resolve(prefs.getString(KEY_SERVER_URL, null), BuildConfig.DEFAULT_SERVER_URL)
         set(value) = prefs.edit { putString(KEY_SERVER_URL, value.trim().trimEnd('/')) }
 
     fun isConfigured(): Boolean = deviceId.isNotBlank() && apiKey.isNotBlank() && serverBaseUrl.isNotBlank()

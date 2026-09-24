@@ -17,7 +17,7 @@ Two deployed parts, one repository:
 - `mobile/` — native Kotlin Android app. Captures at 1 Hz, uploads every 30 s,
   queues locally and resends so nothing is lost.
 - `server/` — Express + TypeScript on Postgres. Device-authenticated ingestion
-  API plus the dashboard. Deployed on Render from `main` with `autoDeploy`.
+  API plus the dashboard. Deployed on Railway from `main` on every push.
 
 ## The mechanism nobody else has here
 
@@ -47,8 +47,8 @@ here is flown by.
   the premise.
 - **A fleet, not one aircraft.** Every packet identifies its device; the server
   authenticates per device.
-- **Free-tier hosting.** Render free web service and free Postgres. The service
-  sleeps after ~15 min idle and takes ~1 min to wake.
+- **Low-cost hosting.** A Railway Hobby project: one web service and one Postgres.
+  Unlike the Render free tier it replaced, the service does not sleep when idle.
 
 ## Known risk with no software fix
 

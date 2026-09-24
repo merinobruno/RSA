@@ -252,35 +252,42 @@ Two tables, see `migrations/001_init.sql`:
 
 ## Deploying
 
-`render.yaml` at the repository root is a Render blueprint that provisions the
-server and its PostgreSQL database together, wiring `DATABASE_URL` between them
-automatically.
+Production runs on Railway (project `rsa-telemetry`), deployed from `main` on every push:
+<https://rsa-telemetry-server-production.up.railway.app>. It moved there from Render on
+2026-09-24.
 
-1. Push this repository to GitHub.
-2. In Render: **New > Blueprint**, point it at the repository, apply.
-3. Wait for the first deploy. `GET /health` on the service URL should answer
-   `{"status":"ok"}`.
-4. The database starts empty. Copy its **external** connection string from the
-   Render dashboard and, from your machine, apply the schema and register an
-   aircraft against it:
+`railway.json` in this directory is the build and deploy config (build, start command, health
+check). Two settings live on the service instead, because the file cannot express them:
+
+- **Root directory** `/server`, which is also why this file is found here and not at the
+  repository root.
+- **`DATABASE_URL`** = `${{Postgres.DATABASE_URL}}`, a reference to the Postgres service in the
+  same project, so the connection string is never copied by hand. It uses the private network.
+
+To set it up again from scratch:
+
+1. `railway init`, then `railway add --database postgres`, then an empty service with the
+   `DATABASE_URL` reference above, root directory `/server`, connected to this repository's
+   `main` branch.
+2. Wait for the first deploy. `GET /health` should answer `{"status":"ok"}`.
+3. The database starts empty. Apply the schema and register an aircraft from your machine. That
+   needs the database reachable from outside: give the Postgres service a TCP proxy, and a
+   `DATABASE_PUBLIC_URL` variable built from `RAILWAY_TCP_PROXY_DOMAIN` and
+   `RAILWAY_TCP_PROXY_PORT`. Then:
 
    ```bash
-   DATABASE_URL="<external connection string>" npm run migrate
-   DATABASE_URL="<external connection string>" npm run seed:device -- "LV-ABC"
+   railway run --service Postgres -- sh -c 'DATABASE_URL=$DATABASE_PUBLIC_URL npm run migrate'
+   railway run --service Postgres -- sh -c 'DATABASE_URL=$DATABASE_PUBLIC_URL npm run seed:device -- "LV-ABC"'
    ```
 
    Both are one-off operations, which is why neither runs at start-up. Save the
    API key `seed:device` prints - it is shown once and only its hash is stored.
-5. Put the service URL and those credentials into the app's Settings. Unlike a
-   quick tunnel, this URL does not change, so this is the last time you type it.
+   Delete the TCP proxy afterwards: the server reaches the database privately, so the public
+   endpoint is only an exposure.
+4. The app ships with the production URL as its default server, so only the device id and API
+   key go into its Settings.
 
 TLS needs no configuration: `src/db/pool.ts` infers it from the database host.
-
-**Free-tier caveat.** A free Render web service spins down after ~15 minutes of
-inactivity and takes about a minute to wake. During a flight that never
-happens - a packet every 30 seconds keeps it warm - but the first packet after
-a quiet period pays the wake-up. The app queues and retries, so this delays
-data rather than losing it. The free database also expires after 90 days.
 
 ## Testing
 

@@ -127,8 +127,11 @@ Open **Settings** from the main screen and fill in, once, before flying:
 
 - **Device ID**: the UUID assigned to this device when it was registered on the backend.
 - **API key**: the bearer token the backend expects in `Authorization: Bearer <api_key>`.
-- **Server base URL**: e.g. `https://telemetry.example.com` (no trailing slash needed; the app
-  appends `/v1/telemetry` itself). Must be `https://` -- the app enforces this in the form and never
+- **Server base URL**: pre-filled with the production server
+  (`https://rsa-telemetry-server-production.up.railway.app`, the `DEFAULT_SERVER_URL` build field),
+  so it only needs changing to point at a different server. A URL saved against the retired Render
+  host (`*.onrender.com`) is replaced by that default on update. No trailing slash needed; the app
+  appends `/v1/telemetry` itself. Must be `https://` -- the app enforces this in the form and never
   sends the queue over plaintext HTTP.
 
 These are stored in a private `SharedPreferences` file (`android:allowBackup="false"`, and Android
