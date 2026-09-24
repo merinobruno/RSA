@@ -17,9 +17,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.rsa.telemetry.databinding.ActivityMainBinding
+import com.rsa.telemetry.network.VersionClient
 import com.rsa.telemetry.service.TelemetryForegroundService
 import com.rsa.telemetry.util.Iso8601
 import com.rsa.telemetry.util.PacketFormatter
+import com.rsa.telemetry.util.VersionCheck
+import com.rsa.telemetry.util.VersionStatus
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -33,6 +36,9 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private val container get() = (application as MobileApp).container
+
+    // The theme's caption colour, captured before the update notice can ever recolour the view.
+    private val defaultVersionTextColors by lazy { binding.versionStatusText.textColors }
 
     private val requestLocationPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
@@ -88,6 +94,48 @@ class MainActivity : AppCompatActivity() {
             if (container.settingsRepository.isConfigured()) View.GONE else View.VISIBLE
         refreshBatteryExemptionButton()
         refreshRunningStatus()
+        refreshVersionStatus()
+    }
+
+    /** On every resume, so a URL changed in Settings is checked the moment the operator returns. */
+    private fun refreshVersionStatus() {
+        val appVersion = BuildConfig.VERSION_NAME
+        showVersionStatus(getString(R.string.version_checking, appVersion), needsUpdate = false)
+        lifecycleScope.launch {
+            val serverVersion = VersionClient(container.settingsRepository).fetchServerVersion()
+            when (val status = VersionCheck.compare(appVersion, serverVersion)) {
+                VersionStatus.UpToDate ->
+                    showVersionStatus(getString(R.string.version_up_to_date, appVersion), needsUpdate = false)
+                is VersionStatus.UpdateRequired ->
+                    showVersionStatus(
+                        getString(R.string.version_update_required, appVersion, status.serverVersion),
+                        needsUpdate = true,
+                    )
+                is VersionStatus.ServerBehind ->
+                    showVersionStatus(
+                        getString(R.string.version_server_behind, appVersion, status.serverVersion),
+                        needsUpdate = false,
+                    )
+                VersionStatus.Unknown ->
+                    showVersionStatus(getString(R.string.version_unknown, appVersion), needsUpdate = false)
+            }
+        }
+    }
+
+    // Same palette as the not-configured warning, so "act on this" looks the same everywhere.
+    private fun showVersionStatus(text: String, needsUpdate: Boolean) {
+        val view = binding.versionStatusText
+        view.text = text
+        if (needsUpdate) {
+            val padding = (12 * resources.displayMetrics.density).toInt()
+            view.setBackgroundColor(0xFFFFF3E0.toInt())
+            view.setTextColor(0xFFE65100.toInt())
+            view.setPadding(padding, padding, padding, padding)
+        } else {
+            view.background = null
+            view.setTextColor(defaultVersionTextColors)
+            view.setPadding(0, 0, 0, 0)
+        }
     }
 
     override fun onStart() {

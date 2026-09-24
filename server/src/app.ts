@@ -2,6 +2,7 @@ import express, { type ErrorRequestHandler } from "express";
 import compression from "compression";
 import { telemetryRouter } from "./routes/telemetry";
 import { dashboardRouter } from "./routes/dashboard";
+import { APP_VERSION } from "./version";
 
 export function createApp() {
   const app = express();
@@ -17,6 +18,12 @@ export function createApp() {
   // for deployment health checks / smoke tests.
   app.get("/health", (_req, res) => {
     res.status(200).json({ status: "ok" });
+  });
+
+  // Public and unauthenticated: the mobile app asks for it to tell the operator whether their copy
+  // is behind, before a device id or API key has necessarily been entered.
+  app.get("/version", (_req, res) => {
+    res.status(200).json({ version: APP_VERSION });
   });
 
   app.use("/v1", telemetryRouter);

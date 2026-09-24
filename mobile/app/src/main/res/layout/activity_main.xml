@@ -10,6 +10,16 @@
         android:orientation="vertical"
         android:padding="24dp">
 
+        <!-- The app's version against the server's. Plain muted text when they agree; turns into
+             an orange notice when the app is behind and must be updated. -->
+        <TextView
+            android:id="@+id/versionStatusText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:textAppearance="?attr/textAppearanceCaption"
+            tools:text="Version 1.1.0 · up to date with the server" />
+
         <TextView
             android:id="@+id/notConfiguredWarning"
             android:layout_width="match_parent"

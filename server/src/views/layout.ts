@@ -8,6 +8,7 @@
  */
 
 import { DARK, HEADER, LIGHT, cssVariables } from "./theme";
+import { APP_VERSION } from "../version";
 
 export function escapeHtml(value: unknown): string {
   return String(value).replace(
@@ -82,6 +83,13 @@ const STYLES = `
     border-bottom: 1px solid currentColor;
   }
   .back:hover { color: var(--header-ink); }
+  /* Pushed to the far end of the header: it is reference, not navigation. */
+  .version {
+    margin-left: auto;
+    color: var(--header-link);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
   main { max-width: 960px; margin: 0 auto; padding: 20px; }
   h2 { font-size: 22px; margin: 0 0 14px; }
   a:focus-visible, input:focus-visible {
@@ -538,6 +546,7 @@ ${headExtra}
 <header>
   <h1><a href="/">RSA · seguimiento de vuelos</a></h1>
   ${back}
+  <span class="version" title="Versión del programa. La app móvil debe mostrar la misma.">v${escapeHtml(APP_VERSION)}</span>
 </header>
 <main>${body}</main>
 </body>

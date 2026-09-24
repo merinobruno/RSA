@@ -42,4 +42,9 @@
     <string name="notification_text_initial">Starting…</string>
     <string name="notification_text_no_permission">Location permission missing</string>
     <string name="notification_text_waiting_gps">Waiting for GPS fix</string>
+    <string name="version_checking">Version %1$s · checking the server…</string>
+    <string name="version_up_to_date">Version %1$s · up to date with the server</string>
+    <string name="version_update_required">Update required: this app is version %1$s, the server is on %2$s. Install the new version of the app.</string>
+    <string name="version_server_behind">Version %1$s · the server is still on %2$s</string>
+    <string name="version_unknown">Version %1$s · could not check the server</string>
 </resources>

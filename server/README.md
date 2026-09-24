@@ -289,6 +289,20 @@ To set it up again from scratch:
 
 TLS needs no configuration: `src/db/pool.ts` infers it from the database host.
 
+## Versioning
+
+The program has one version, the `version` in `package.json`. The dashboard shows it in the
+header, `GET /version` returns it (`{"version":"1.1.0"}`, no authentication), and the Android
+build reads the same file for its own version. The app compares itself against `GET /version`
+and tells the operator to update when the server's number is higher.
+
+Bump it when a new version of the program ships, not on every deploy. A server-only change that
+leaves the app alone should not tell every operator to update their phone.
+
+```bash
+npm version 1.2.0 --no-git-tag-version
+```
+
 ## Testing
 
 ```bash

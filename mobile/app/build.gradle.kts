@@ -5,6 +5,15 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val programVersion: String = run {
+    val packageJson = rootProject.file("../server/package.json")
+    val version = (groovy.json.JsonSlurper().parse(packageJson) as Map<*, *>)["version"] as String
+    require(Regex("""\d+\.\d{1,2}\.\d{1,2}""").matches(version)) {
+        "server/package.json version \"$version\" must be MAJOR.MINOR.PATCH with minor and patch below 100"
+    }
+    version
+}
+
 android {
     namespace = "com.rsa.telemetry"
     compileSdk = 34
@@ -17,8 +26,14 @@ android {
         // 2) Adaptive launcher icons (mipmap-anydpi-v26) need no legacy raster fallback.
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1.0"
+        // The program's version lives in server/package.json and nowhere else, so an app and a
+        // server built from the same commit always agree; the app compares itself against the
+        // server's GET /version to tell the operator when their copy is behind. versionCode is
+        // derived from it (1.1.0 -> 10100) so it can never be forgotten or go backwards.
+        versionName = programVersion
+        versionCode = programVersion.split(".").map(String::toInt).let { (major, minor, patch) ->
+            major * 10_000 + minor * 100 + patch
+        }
 
         // The server a fresh install talks to, so the operator only has to enter the device id and
         // API key. The Settings screen can still override it.

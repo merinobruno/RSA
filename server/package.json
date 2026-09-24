@@ -1,6 +1,6 @@
 {
   "name": "rsa-telemetry-server",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Backend server for the RSA aircraft telemetry tracking system: ingests, validates, stores, and exposes a query API for telemetry packets sent by the companion Android app.",
   "main": "dist/index.js",
   "directories": {
